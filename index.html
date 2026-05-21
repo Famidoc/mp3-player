@@ -4,10 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KTV MP3 Player</title>
+  <!-- PWA 描述檔 -->
   <link rel="manifest" href="manifest.json" id="pwa-manifest">
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome 圖示庫 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Vue 3 -->
   <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.min.js"></script>
+  <!-- Tone.js 用於即時升降 Key (Pitch Shifting) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
   
   <style>
@@ -33,36 +38,44 @@
 
   <div id="app" class="w-full max-w-md bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-2xl rounded-none sm:rounded-3xl overflow-hidden flex flex-col my-auto h-screen sm:h-[90vh]">
     
+    <!-- Toast 訊息提示框 (取代傳統 alert) -->
     <div v-if="showToast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-slate-800/95 border border-slate-700 text-slate-100 px-5 py-3 rounded-2xl shadow-2xl z-[100] text-xs font-semibold flex items-center gap-2 transition-all duration-300">
       <i class="fa fa-info-circle text-cyan-400 text-sm"></i>
       <span>{{ toastMessage }}</span>
     </div>
 
+    <!-- 頂部標頭與分頁切換 -->
     <header class="bg-slate-950/80 p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
         <h1 class="text-lg font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-500 italic">MP3 PLAYER</h1>
       </div>
       <div class="flex gap-2">
+        <!-- 歌詞/歌單切換 -->
         <button @click="toggleShow" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs transition duration-200">
           <i class="fa" :class="showSongList ? 'fa-music text-cyan-400' : 'fa-list-ul text-yellow-400'"></i>
           <span class="ml-1 hidden xs:inline">{{ showSongList ? '歌詞' : '歌單' }}</span>
         </button>
+        <!-- 系統設定 (輸入 GAS API URL) -->
         <button @click="showSettingsModal = true" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">
           <i class="fa fa-cog"></i>
         </button>
       </div>
     </header>
 
+    <!-- 跑馬燈本日留名訪客 -->
     <div class="bg-indigo-950/40 border-b border-indigo-900/30 text-indigo-300 py-1.5 text-xs overflow-hidden whitespace-nowrap shrink-0">
       <div class="inline-block animate-marquee">
         <span class="font-bold text-yellow-400">{{ userName || '訪客' }}</span> 歡迎光臨！本日留名訪客：{{ visitorListString }}
       </div>
     </div>
 
+    <!-- 系統主核心顯示區域 (Lyric 與 SongList 分頁) -->
     <main class="flex-1 overflow-hidden relative flex flex-col">
       
+      <!-- 歌詞頁面 (含有 LRC 滾動) -->
       <section v-show="!showSongList" class="flex-1 flex flex-col overflow-hidden p-4">
+        <!-- 歌曲資訊卡 -->
         <div class="bg-slate-950/50 rounded-2xl p-4 border border-slate-800/60 mb-4 shrink-0">
           <div class="flex justify-between items-start">
             <div>
@@ -76,7 +89,9 @@
             </div>
           </div>
 
+          <!-- 音效控制器 (升降 Key 與 原伴唱拉桿) -->
           <div class="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-3 text-xs">
+            <!-- 升降 Key (Tone.js 核心) -->
             <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex flex-col justify-between">
               <div class="text-slate-400 font-semibold mb-1 flex justify-between">
                 <span>升降 Key (Pitch)</span>
@@ -90,6 +105,7 @@
               </div>
             </div>
 
+            <!-- 原伴唱分離 (相容性設計：僅在有 instDriveId 時才顯示) -->
             <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex flex-col justify-between">
               <div class="text-slate-400 font-semibold mb-1 flex justify-between">
                 <span>原伴唱切換</span>
@@ -109,6 +125,7 @@
           </div>
         </div>
 
+        <!-- 歌詞顯示區 -->
         <div ref="lyricContainer" class="flex-1 overflow-y-auto rounded-2xl bg-slate-950/60 border border-slate-800/40 p-4 scroll-smooth text-center space-y-4 no-scrollbar">
           <div v-if="parsedLyrics.length > 0" class="py-32">
             <p v-for="(line, index) in parsedLyrics" 
@@ -127,12 +144,15 @@
         </div>
       </section>
 
+      <!-- 歌單與搜尋頁面 -->
       <section v-show="showSongList" class="flex-1 flex flex-col overflow-hidden">
+        <!-- 搜尋列 -->
         <div class="p-3 bg-slate-950/30 border-b border-slate-800/50 flex flex-col gap-2 shrink-0">
           <div class="relative">
             <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
             <input type="text" v-model="searchQuery" placeholder="搜尋歌名、歌手、點歌者..." class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 pl-9 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition">
           </div>
+          <!-- 特殊篩選快捷按鈕 -->
           <div class="flex gap-2">
             <button @click="showMyPlaylistOnly = !showMyPlaylistOnly" :class="showMyPlaylistOnly ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50' : 'bg-slate-900 text-slate-400 border-slate-800'" class="flex-1 text-xs py-1.5 px-3 rounded-lg border font-semibold transition flex items-center justify-center gap-1">
               <i class="fa fa-heart"></i>我的歌單
@@ -144,6 +164,7 @@
           </div>
         </div>
 
+        <!-- 歌曲清單列表 -->
         <div class="flex-1 overflow-y-auto divide-y divide-slate-800/40">
           <div v-for="(song, index) in filteredSongs" 
                :key="song.id"
@@ -160,6 +181,7 @@
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
+              <!-- 加入/移除我的歌單 (星號按鈕) -->
               <button @click.stop="toggleMyFavorite(song)" class="p-2 text-slate-500 hover:text-yellow-400 transition">
                 <i class="fa" :class="isMyFavorite(song) ? 'fa-star text-yellow-400' : 'fa-star-o'"></i>
               </button>
@@ -168,13 +190,15 @@
           
           <div v-if="filteredSongs.length === 0" class="py-20 text-center text-slate-500">
             <i class="fa fa-music-slash text-4xl mb-2 opacity-35"></i>
-            <p class="text-sm">無符合條件的歌曲</p>
+            <p class="text-sm">無符合條件 of 歌曲</p>
           </div>
         </div>
       </section>
     </main>
 
+    <!-- 控制面板 (下方區塊，固定不滾動) -->
     <footer class="bg-slate-950/90 border-t border-slate-800 p-4 shrink-0 space-y-3">
+      <!-- 播放時間軸 -->
       <div class="flex items-center gap-3 text-[11px] text-slate-400 font-mono">
         <span>{{ formatTime(currentTime) }}</span>
         <div class="flex-1 relative group py-2 cursor-pointer" @click="seekAudio">
@@ -187,34 +211,42 @@
         <span>{{ formatTime(duration) }}</span>
       </div>
 
+      <!-- 播放控制按鈕 -->
       <div class="flex items-center justify-between">
+        <!-- 點歌按鈕 -->
         <button @click="showOrderModal = true" class="text-slate-400 hover:text-white transition p-2 text-xs flex flex-col items-center">
           <i class="fa fa-envelope text-base text-green-400"></i>
           <span class="text-[10px] mt-0.5">點歌</span>
         </button>
 
+        <!-- 上傳按鈕 -->
         <button @click="showUploadModal = true" class="text-slate-400 hover:text-white transition p-2 text-xs flex flex-col items-center">
           <i class="fa fa-cloud-upload text-base text-cyan-400"></i>
           <span class="text-[10px] mt-0.5">上傳</span>
         </button>
 
+        <!-- 上一首 -->
         <button @click="playPrev" class="text-slate-300 hover:text-white transition p-2 text-lg active:scale-90">
           <i class="fa fa-step-backward"></i>
         </button>
 
+        <!-- 播放 / 暫停 -->
         <button @click="togglePlay" class="w-12 h-12 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 hover:brightness-110 flex items-center justify-center text-white text-lg active:scale-95 shadow-lg shadow-indigo-500/20 transition">
           <i class="fa" :class="isPlaying ? 'fa-pause' : 'fa-play ml-0.5'"></i>
         </button>
 
+        <!-- 下一首 -->
         <button @click="playNext" class="text-slate-300 hover:text-white transition p-2 text-lg active:scale-90">
           <i class="fa fa-step-forward"></i>
         </button>
 
+        <!-- 音量切換 -->
         <button @click="toggleMute" class="text-slate-400 hover:text-white transition p-2 text-xs flex flex-col items-center w-10">
           <i class="fa text-base text-indigo-400" :class="isMuted ? 'fa-volume-mute' : 'fa-volume-up'"></i>
           <span class="text-[10px] mt-0.5">{{ isMuted ? '靜音' : Math.round(volume * 100) + '%' }}</span>
         </button>
 
+        <!-- 說明按鈕 -->
         <button @click="showInfoModal = true" class="text-slate-400 hover:text-white transition p-2 text-xs flex flex-col items-center">
           <i class="fa fa-question-circle text-base text-yellow-500"></i>
           <span class="text-[10px] mt-0.5">說明</span>
@@ -222,6 +254,11 @@
       </div>
     </footer>
 
+    <!-- ==========================================================================
+         全螢幕浮動視窗 (Modals)
+         ========================================================================= -->
+
+    <!-- Modal 1: 點歌郵件通知 -->
     <div v-if="showOrderModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-lg font-bold text-green-400 flex items-center gap-2">
@@ -247,6 +284,7 @@
       </div>
     </div>
 
+    <!-- Modal 2: 網址上傳 MP3 -->
     <div v-if="showUploadModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-3 max-h-[90vh] overflow-y-auto no-scrollbar">
         <h3 class="text-lg font-bold text-cyan-400 flex items-center gap-2">
@@ -282,6 +320,7 @@
       </div>
     </div>
 
+    <!-- Modal 3: 使用說明 -->
     <div v-if="showInfoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 max-h-[80vh] overflow-y-auto no-scrollbar">
         <h3 class="text-lg font-bold text-yellow-500 flex items-center justify-between">
@@ -307,6 +346,7 @@
       </div>
     </div>
 
+    <!-- Modal 4: 系統設定與 API 位置 -->
     <div v-if="showSettingsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-lg font-bold text-indigo-400 flex items-center gap-2">
@@ -387,7 +427,7 @@
         // 原伴唱混合拉桿 (0 = 完全原唱, 1 = 完全伴奏, 0.5 = 混音各半)
         const faderValue = ref(0); 
 
-        // 🌟 經典回歸：全域唯一的單例 Audio 與 Tone 物件，絕對不重複創建或銷毀
+        // 全域復用單例 Audio 與 Tone 物件
         let vocalAudio = null;
         let instAudio = null;
         let toneVocalSource = null;
@@ -403,7 +443,7 @@
           return null;
         });
 
-        // 🌟 經典回歸：100% 採用最穩定的 Docs UC 直連端點
+        // 🌟 採用最穩定的 Docs UC 直連端點
         const currentSrcVocal = computed(() => {
           if (!currentSong.value || !currentSong.value.vocalDriveId) return '';
           const vId = currentSong.value.vocalDriveId.trim();
@@ -509,7 +549,7 @@
         });
 
         /* ==========================================================================
-           🌟 核心音訊處理引擎 (完美複製舊版 KTV 成功架構 —— 絕不加 crossOrigin)
+           🌟 核心音訊處理引擎 (完美複製舊版 KTV 成功架構)
            ========================================================================= */
         
         const initAudioEngine = () => {
@@ -518,23 +558,24 @@
           // 啟用瀏覽器 Web Audio 上下文
           Tone.start();
 
-          // 💡 經典修復：建立原生 HTML5 Audio 物件，並且「絕對不要」寫任何 crossOrigin = "anonymous" 屬性！
+          // 1. 建立原生 HTML5 Audio 物件 (絕對不要寫任何 crossOrigin = "anonymous" 屬性)
           vocalAudio = new Audio();
           instAudio = new Audio();
 
-          // 透過 Tone.js 提供的 MediaElementSource 進行純管道節點橋接（一邊串流一邊變調）
-          toneVocalSource = new Tone.MediaElementSource(vocalAudio);
-          toneInstSource = new Tone.MediaElementSource(instAudio);
-
-          // 建立 PitchShift 變調節點
+          // 2. 建立 PitchShift 變調節點
           tonePitchShiftNode = new Tone.PitchShift(pitchShift.value);
-
-          // 連接：音源 -> 變調節點 -> 主輸出
-          toneVocalSource.connect(tonePitchShiftNode);
-          toneInstSource.connect(tonePitchShiftNode);
           tonePitchShiftNode.toDestination();
 
-          // 監聽時序與同步
+          // 3. 🌟 終極修復：使用與舊版 100% 一致的標準 Web Audio API 橋接
+          // 不使用 new Tone.MediaElementSource，直接透過 Tone 內建 Context 建立原生 MediaElementAudioSourceNode
+          toneVocalSource = Tone.context.createMediaElementSource(vocalAudio);
+          toneInstSource = Tone.context.createMediaElementSource(instAudio);
+
+          // 4. 🌟 終極修復：使用 Tone.connect 連接原生 AudioNode 與 Tone.js PitchShift 節點
+          Tone.connect(toneVocalSource, tonePitchShiftNode);
+          Tone.connect(toneInstSource, tonePitchShiftNode);
+
+          // 5. 監聽時序與同步
           vocalAudio.addEventListener('timeupdate', () => {
             currentTime.value = vocalAudio.currentTime;
             if (hasCompanion.value && Math.abs(vocalAudio.currentTime - instAudio.currentTime) > 0.15) {
@@ -601,6 +642,7 @@
 
         // 點播歌曲
         const playSongById = async (id) => {
+          // 💡 點擊時第一步執行 initAudioEngine()，由於已經換成正確的原生接口，這裡絕對不會再報錯卡死
           initAudioEngine();
           
           const idx = filteredSongs.value.findIndex(s => s.id === id);
