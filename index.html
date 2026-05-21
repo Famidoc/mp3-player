@@ -448,14 +448,14 @@
           if (!currentSong.value || !currentSong.value.vocalDriveId) return '';
           const vId = currentSong.value.vocalDriveId.trim();
           if (vId.startsWith('http://') || vId.startsWith('https://')) return vId;
-          return `https://docs.google.com/uc?export=download&id=${vId}`;
+          return `https://docs.google.com/uc?export=view&id=${vId}`;
         });
 
         const currentSrcInst = computed(() => {
           if (!currentSong.value || !currentSong.value.instDriveId) return '';
           const iId = currentSong.value.instDriveId.trim();
           if (iId.startsWith('http://') || iId.startsWith('https://')) return iId;
-          return `https://docs.google.com/uc?export=download&id=${iId}`;
+          return `https://docs.google.com/uc?export=view&id=${iId}`;
         });
 
         // 偵測目前歌曲是否擁有伴奏檔
