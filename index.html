@@ -4,15 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KTV MP3 Player</title>
-  <!-- PWA 描述檔 -->
   <link rel="manifest" href="manifest.json" id="pwa-manifest">
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Font Awesome 圖示庫 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Vue 3 -->
   <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.min.js"></script>
-  <!-- Tone.js 用於即時升降 Key (Pitch Shifting) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
   
   <style>
@@ -38,44 +33,36 @@
 
   <div id="app" class="w-full max-w-md bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-2xl rounded-none sm:rounded-3xl overflow-hidden flex flex-col my-auto h-screen sm:h-[90vh]">
     
-    <!-- Toast 訊息提示框 (取代傳統 alert) -->
     <div v-if="showToast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-slate-800/95 border border-slate-700 text-slate-100 px-5 py-3 rounded-2xl shadow-2xl z-[100] text-xs font-semibold flex items-center gap-2 transition-all duration-300">
       <i class="fa fa-info-circle text-cyan-400 text-sm"></i>
       <span>{{ toastMessage }}</span>
     </div>
 
-    <!-- 頂部標頭與分頁切換 -->
     <header class="bg-slate-950/80 p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
         <h1 class="text-lg font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-500 italic">MP3 PLAYER</h1>
       </div>
       <div class="flex gap-2">
-        <!-- 歌詞/歌單切換 -->
         <button @click="toggleShow" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs transition duration-200">
           <i class="fa" :class="showSongList ? 'fa-music text-cyan-400' : 'fa-list-ul text-yellow-400'"></i>
           <span class="ml-1 hidden xs:inline">{{ showSongList ? '歌詞' : '歌單' }}</span>
         </button>
-        <!-- 系統設定 (輸入 GAS API URL) -->
         <button @click="showSettingsModal = true" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">
           <i class="fa fa-cog"></i>
         </button>
       </div>
     </header>
 
-    <!-- 跑馬燈本日留名訪客 -->
     <div class="bg-indigo-950/40 border-b border-indigo-900/30 text-indigo-300 py-1.5 text-xs overflow-hidden whitespace-nowrap shrink-0">
       <div class="inline-block animate-marquee">
         <span class="font-bold text-yellow-400">{{ userName || '訪客' }}</span> 歡迎光臨！本日留名訪客：{{ visitorListString }}
       </div>
     </div>
 
-    <!-- 系統主核心顯示區域 (Lyric 與 SongList 分頁) -->
     <main class="flex-1 overflow-hidden relative flex flex-col">
       
-      <!-- 歌詞頁面 (含有 LRC 滾動) -->
       <section v-show="!showSongList" class="flex-1 flex flex-col overflow-hidden p-4">
-        <!-- 歌曲資訊卡 -->
         <div class="bg-slate-950/50 rounded-2xl p-4 border border-slate-800/60 mb-4 shrink-0">
           <div class="flex justify-between items-start">
             <div>
@@ -89,9 +76,7 @@
             </div>
           </div>
 
-          <!-- 音效控制器 (升降 Key 與 原伴唱拉桿) -->
           <div class="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-3 text-xs">
-            <!-- 升降 Key (Tone.js 核心) -->
             <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex flex-col justify-between">
               <div class="text-slate-400 font-semibold mb-1 flex justify-between">
                 <span>升降 Key (Pitch)</span>
@@ -105,7 +90,6 @@
               </div>
             </div>
 
-            <!-- 原伴唱分離 (相容性設計：僅在有 instDriveId 時才顯示) -->
             <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex flex-col justify-between">
               <div class="text-slate-400 font-semibold mb-1 flex justify-between">
                 <span>原伴唱切換</span>
@@ -125,7 +109,6 @@
           </div>
         </div>
 
-        <!-- 歌詞顯示區 -->
         <div ref="lyricContainer" class="flex-1 overflow-y-auto rounded-2xl bg-slate-950/60 border border-slate-800/40 p-4 scroll-smooth text-center space-y-4 no-scrollbar">
           <div v-if="parsedLyrics.length > 0" class="py-32">
             <p v-for="(line, index) in parsedLyrics" 
@@ -144,15 +127,12 @@
         </div>
       </section>
 
-      <!-- 歌單與搜尋頁面 -->
       <section v-show="showSongList" class="flex-1 flex flex-col overflow-hidden">
-        <!-- 搜尋列 -->
         <div class="p-3 bg-slate-950/30 border-b border-slate-800/50 flex flex-col gap-2 shrink-0">
           <div class="relative">
             <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
             <input type="text" v-model="searchQuery" placeholder="搜尋歌名、歌手、點歌者..." class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 pl-9 pr-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition">
           </div>
-          <!-- 特殊篩選快捷按鈕 -->
           <div class="flex gap-2">
             <button @click="showMyPlaylistOnly = !showMyPlaylistOnly" :class="showMyPlaylistOnly ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50' : 'bg-slate-900 text-slate-400 border-slate-800'" class="flex-1 text-xs py-1.5 px-3 rounded-lg border font-semibold transition flex items-center justify-center gap-1">
               <i class="fa fa-heart"></i>我的歌單
@@ -164,7 +144,6 @@
           </div>
         </div>
 
-        <!-- 歌曲清單列表 -->
         <div class="flex-1 overflow-y-auto divide-y divide-slate-800/40">
           <div v-for="(song, index) in filteredSongs" 
                :key="song.id"
@@ -181,7 +160,6 @@
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
-              <!-- 加入/移除我的歌單 (星號按鈕) -->
               <button @click.stop="toggleMyFavorite(song)" class="p-2 text-slate-500 hover:text-yellow-400 transition">
                 <i class="fa" :class="isMyFavorite(song) ? 'fa-star text-yellow-400' : 'fa-star-o'"></i>
               </button>
@@ -196,9 +174,7 @@
       </section>
     </main>
 
-    <!-- 控制面板 (下方區塊，固定不滾動) -->
     <footer class="bg-slate-950/90 border-t border-slate-800 p-4 shrink-0 space-y-3">
-      <!-- 播放時間軸 -->
       <div class="flex items-center gap-3 text-[11px] text-slate-400 font-mono">
         <span>{{ formatTime(currentTime) }}</span>
         <div class="flex-1 relative group py-2 cursor-pointer" @click="seekAudio">
@@ -211,42 +187,34 @@
         <span>{{ formatTime(duration) }}</span>
       </div>
 
-      <!-- 播放控制按鈕 -->
       <div class="flex items-center justify-between">
-        <!-- 點歌按鈕 -->
         <button @click="showOrderModal = true" class="text-slate-400 hover:text-white transition p-2 text-xs flex flex-col items-center">
           <i class="fa fa-envelope text-base text-green-400"></i>
           <span class="text-[10px] mt-0.5">點歌</span>
         </button>
 
-        <!-- 上傳按鈕 -->
         <button @click="showUploadModal = true" class="text-slate-400 hover:text-white transition p-2 text-xs flex flex-col items-center">
           <i class="fa fa-cloud-upload text-base text-cyan-400"></i>
           <span class="text-[10px] mt-0.5">上傳</span>
         </button>
 
-        <!-- 上一首 -->
         <button @click="playPrev" class="text-slate-300 hover:text-white transition p-2 text-lg active:scale-90">
           <i class="fa fa-step-backward"></i>
         </button>
 
-        <!-- 播放 / 暫停 -->
         <button @click="togglePlay" class="w-12 h-12 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 hover:brightness-110 flex items-center justify-center text-white text-lg active:scale-95 shadow-lg shadow-indigo-500/20 transition">
           <i class="fa" :class="isPlaying ? 'fa-pause' : 'fa-play ml-0.5'"></i>
         </button>
 
-        <!-- 下一首 -->
         <button @click="playNext" class="text-slate-300 hover:text-white transition p-2 text-lg active:scale-90">
           <i class="fa fa-step-forward"></i>
         </button>
 
-        <!-- 音量切換 -->
         <button @click="toggleMute" class="text-slate-400 hover:text-white transition p-2 text-xs flex flex-col items-center w-10">
           <i class="fa text-base text-indigo-400" :class="isMuted ? 'fa-volume-mute' : 'fa-volume-up'"></i>
           <span class="text-[10px] mt-0.5">{{ isMuted ? '靜音' : Math.round(volume * 100) + '%' }}</span>
         </button>
 
-        <!-- 說明按鈕 -->
         <button @click="showInfoModal = true" class="text-slate-400 hover:text-white transition p-2 text-xs flex flex-col items-center">
           <i class="fa fa-question-circle text-base text-yellow-500"></i>
           <span class="text-[10px] mt-0.5">說明</span>
@@ -254,11 +222,6 @@
       </div>
     </footer>
 
-    <!-- ==========================================================================
-         全螢幕浮動視窗 (Modals)
-         ========================================================================= -->
-
-    <!-- Modal 1: 點歌郵件通知 -->
     <div v-if="showOrderModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-lg font-bold text-green-400 flex items-center gap-2">
@@ -284,7 +247,6 @@
       </div>
     </div>
 
-    <!-- Modal 2: 網址上傳 MP3 -->
     <div v-if="showUploadModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-3 max-h-[90vh] overflow-y-auto no-scrollbar">
         <h3 class="text-lg font-bold text-cyan-400 flex items-center gap-2">
@@ -320,7 +282,6 @@
       </div>
     </div>
 
-    <!-- Modal 3: 使用說明 -->
     <div v-if="showInfoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 max-h-[80vh] overflow-y-auto no-scrollbar">
         <h3 class="text-lg font-bold text-yellow-500 flex items-center justify-between">
@@ -346,7 +307,6 @@
       </div>
     </div>
 
-    <!-- Modal 4: 系統設定與 API 位置 -->
     <div v-if="showSettingsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-lg font-bold text-indigo-400 flex items-center gap-2">
@@ -427,19 +387,13 @@
         // 原伴唱混合拉桿 (0 = 完全原唱, 1 = 完全伴奏, 0.5 = 混音各半)
         const faderValue = ref(0); 
 
-        // 全域復用單例 Audio 物件
+        // 🌟 經典回歸：全域唯一的單例 Audio 與 Tone 物件，絕對不重複創建或銷毀
         let vocalAudio = null;
         let instAudio = null;
         let toneVocalSource = null;
         let toneInstSource = null;
         let tonePitchShiftNode = null;
-        let isAudioEngineStarted = false; // 是否正在使用 Tone 變調引擎模式
-
-        // 歌曲音軌安全自動修復 Fallback 陣列管理
-        const vocalFallbacks = ref([]);
-        const vocalFallbackIndex = ref(0);
-        const instFallbacks = ref([]);
-        const instFallbackIndex = ref(0);
+        let isEngineInitialized = false;
 
         // 計算目前播放中歌曲
         const currentSong = computed(() => {
@@ -449,24 +403,19 @@
           return null;
         });
 
-        // 🌟 智慧優化：將首發網址與所有重置位置直接改為 Google 最強不需 Cookie、支援 CORS 的 CDN 格式
+        // 🌟 經典回歸：100% 採用最穩定的 Docs UC 直連端點
         const currentSrcVocal = computed(() => {
           if (!currentSong.value || !currentSong.value.vocalDriveId) return '';
-          // 💡 防護升級：如果儲存的是完整 URL，直接使用；否則使用 Google 直連端點
-          const vId = currentSong.value.vocalDriveId;
-          if (vId.startsWith('http://') || vId.startsWith('https://')) {
-            return vId;
-          }
-          return `https://lh3.googleusercontent.com/d/${vId}`;
+          const vId = currentSong.value.vocalDriveId.trim();
+          if (vId.startsWith('http://') || vId.startsWith('https://')) return vId;
+          return `https://docs.google.com/uc?export=download&id=${vId}`;
         });
 
         const currentSrcInst = computed(() => {
           if (!currentSong.value || !currentSong.value.instDriveId) return '';
-          const iId = currentSong.value.instDriveId;
-          if (iId.startsWith('http://') || iId.startsWith('https://')) {
-            return iId;
-          }
-          return `https://lh3.googleusercontent.com/d/${iId}`;
+          const iId = currentSong.value.instDriveId.trim();
+          if (iId.startsWith('http://') || iId.startsWith('https://')) return iId;
+          return `https://docs.google.com/uc?export=download&id=${iId}`;
         });
 
         // 偵測目前歌曲是否擁有伴奏檔
@@ -494,7 +443,6 @@
               const sec = parseInt(match[2]);
               const msStr = match[3];
               const ms = parseInt(msStr);
-              // 動態計算毫秒位元數並轉為秒
               const factor = msStr.length === 3 ? 1000 : 100;
               const time = min * 60 + sec + (ms / factor);
               result.push({ time, text });
@@ -561,65 +509,35 @@
         });
 
         /* ==========================================================================
-           🌟 核心智慧音訊引擎：原生與 Tone.js 變調雙模組動態調配 (解決 CORS 錯誤)
+           🌟 核心音訊處理引擎 (完美複製舊版 KTV 成功架構 —— 絕不加 crossOrigin)
            ========================================================================= */
         
-        // 智慧型初始化，每次切換「變調」與「原生」時都徹底重建，完全解綁 CORS 污染！
-        const setupAudioEngine = (useTone) => {
-          // 1. 如果已有舊物件，徹底暫停、卸載並釋放記憶體
-          if (vocalAudio) {
-            vocalAudio.pause();
-            vocalAudio.src = "";
-            vocalAudio = null;
-          }
-          if (instAudio) {
-            instAudio.pause();
-            instAudio.src = "";
-            instAudio = null;
-          }
+        const initAudioEngine = () => {
+          if (isEngineInitialized) return;
+          
+          // 啟用瀏覽器 Web Audio 上下文
+          Tone.start();
 
-          // 2. 建立全新、乾淨的 Audio 物件
+          // 💡 經典修復：建立原生 HTML5 Audio 物件，並且「絕對不要」寫任何 crossOrigin = "anonymous" 屬性！
           vocalAudio = new Audio();
           instAudio = new Audio();
 
-          if (useTone) {
-            // A 模式：Tone.js 變調模式 (啟用 CORS 認證以允許 Web Audio API 解碼)
-            try {
-              Tone.start();
-              vocalAudio.crossOrigin = "anonymous";
-              instAudio.crossOrigin = "anonymous";
+          // 透過 Tone.js 提供的 MediaElementSource 進行純管道節點橋接（一邊串流一邊變調）
+          toneVocalSource = new Tone.MediaElementSource(vocalAudio);
+          toneInstSource = new Tone.MediaElementSource(instAudio);
 
-              // 建立 MediaElementSource (因為是新的 Audio 物件，必須重新建立)
-              toneVocalSource = new Tone.MediaElementSource(vocalAudio);
-              toneInstSource = new Tone.MediaElementSource(instAudio);
+          // 建立 PitchShift 變調節點
+          tonePitchShiftNode = new Tone.PitchShift(pitchShift.value);
 
-              if (!tonePitchShiftNode) {
-                tonePitchShiftNode = new Tone.PitchShift(pitchShift.value);
-                tonePitchShiftNode.toDestination();
-              } else {
-                tonePitchShiftNode.pitch = pitchShift.value;
-              }
+          // 連接：音源 -> 變調節點 -> 主輸出
+          toneVocalSource.connect(tonePitchShiftNode);
+          toneInstSource.connect(tonePitchShiftNode);
+          tonePitchShiftNode.toDestination();
 
-              toneVocalSource.connect(tonePitchShiftNode);
-              toneInstSource.connect(tonePitchShiftNode);
-              isAudioEngineStarted = true;
-              console.log("🔊 引擎切換：Tone.js 變調模式 (已設定 crossOrigin = anonymous)");
-            } catch (err) {
-              console.error("Tone.js 變調初始化失敗，安全降級為原生:", err);
-              return setupAudioEngine(false); // 降級防落
-            }
-          } else {
-            // B 模式：原生安全播放模式 (完全免 CORS，100% 繞過 Google Drive 的 Cookie 限制！)
-            vocalAudio.removeAttribute('crossorigin');
-            instAudio.removeAttribute('crossorigin');
-            isAudioEngineStarted = false;
-            console.log("🔊 引擎切換：標準原生播放模式 (無 CORS 限制，免疫 Drive 封鎖)");
-          }
-
-          // 3. 重新綁定所有音訊監聽器
+          // 監聽時序與同步
           vocalAudio.addEventListener('timeupdate', () => {
             currentTime.value = vocalAudio.currentTime;
-            if (hasCompanion.value && instAudio && Math.abs(vocalAudio.currentTime - instAudio.currentTime) > 0.15) {
+            if (hasCompanion.value && Math.abs(vocalAudio.currentTime - instAudio.currentTime) > 0.15) {
               instAudio.currentTime = vocalAudio.currentTime;
             }
           });
@@ -632,84 +550,27 @@
             playNextSongAuto();
           });
 
-          // 🌟 智慧 Vocal CORS 與鏈路失效自動修復防落
-          vocalAudio.addEventListener('error', async () => {
-            const err = vocalAudio.error;
-            console.warn("⚠️ Vocal 播放遭遇錯誤，代碼:", err ? err.code : '未知');
-            
-            // 如果在變調模式下因 CORS 阻擋失敗，立即智慧降級到原生模式
-            if (useTone) {
-              console.warn("🔄 [CORS 解碼失敗防護] 變調模式加載失敗，立即自動切回原調原生模式...");
-              triggerToast("⚠️ 因雲端安全限制，此歌曲暫不支援變調，已自動切回「原調」播放！");
-              pitchShift.value = 0;
-              const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
-              const wasPlaying = isPlaying.value;
-              const currentIdTemp = currentSong.value ? currentSong.value.id : null;
-
-              if (currentIdTemp) {
-                setTimeout(async () => {
-                  await playSongById(currentIdTemp, false); // 強制以原生安全模式播放
-                  if (vocalAudio) {
-                    vocalAudio.currentTime = savedTime;
-                    if (wasPlaying) {
-                      try { await vocalAudio.play(); isPlaying.value = true; } catch(e) {}
-                    }
-                  }
-                }, 100);
-              }
-              return;
-            }
-
-            // 如果已經是原生模式還出錯，代表該 URL 失效，嘗試 Fallback 機制
-            if (vocalFallbackIndex.value < vocalFallbacks.value.length - 1) {
-              vocalFallbackIndex.value++;
-              const savedTime = vocalAudio.currentTime;
-              console.log(`🔄 [鏈路自動修復] 切換至第 ${vocalFallbackIndex.value + 1} 順位來源...`);
-              
-              vocalAudio.src = vocalFallbacks.value[vocalFallbackIndex.value];
-              vocalAudio.load();
-              vocalAudio.currentTime = savedTime;
-
-              if (isPlaying.value) {
-                try { await vocalAudio.play(); } catch(e) {}
-              }
-            } else {
-              triggerToast("❌ 所有備用音軌皆讀取失敗。請確認您的 Google Drive 檔案已設定為「知道連結的使用者皆可檢視」。");
-              isPlaying.value = false;
-            }
+          // 異常容錯守護
+          vocalAudio.addEventListener('error', () => {
+            console.error("❌ 原生媒體流加載出錯，錯誤代碼:", vocalAudio.error);
+            triggerToast("❌ 無法讀取歌曲，請確認雲端硬碟檔案是否存在，且代號配對正確。");
+            isPlaying.value = false;
           });
 
-          // 🌟 智慧 Inst (伴奏) CORS 與鏈路失效自動修復防落
-          instAudio.addEventListener('error', async () => {
-            console.warn("⚠️ 伴奏音軌加載錯誤，嘗試備用連結...");
-            if (instFallbackIndex.value < instFallbacks.value.length - 1) {
-              instFallbackIndex.value++;
-              const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
-              instAudio.src = instFallbacks.value[instFallbackIndex.value];
-              instAudio.load();
-              instAudio.currentTime = savedTime;
-              try {
-                if (isPlaying.value) await instAudio.play();
-              } catch(e) {}
-            }
-          });
-
+          isEngineInitialized = true;
           updateVolume();
         };
 
-        // 更新原伴唱 Crossfader 比例與音量
+        // 更新原伴唱拉桿與總音量
         const updateFader = () => {
-          if (!vocalAudio) return;
+          if (!isEngineInitialized) return;
           const currentVolume = isMuted.value ? 0 : volume.value;
-          
-          if (hasCompanion.value && instAudio) {
-            // 雙聲道比例分配
+          if (hasCompanion.value) {
             vocalAudio.volume = (1 - faderValue.value) * currentVolume;
             instAudio.volume = faderValue.value * currentVolume;
           } else {
-            // 單聲道播放
             vocalAudio.volume = currentVolume;
-            if (instAudio) instAudio.volume = 0;
+            instAudio.volume = 0;
           }
         };
 
@@ -722,142 +583,68 @@
           updateVolume();
         };
 
-        // 調整升降 Key
-        const adjustPitch = async (amount) => {
-          const newPitch = Math.max(-6, Math.min(6, pitchShift.value + amount));
-          if (newPitch === pitchShift.value) return;
-
-          pitchShift.value = newPitch;
-
-          if (pitchShift.value !== 0) {
-            // 變調模式：若非 Tone 引擎，需動態啟用並設定 CORS
-            if (!isAudioEngineStarted) {
-              const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
-              const wasPlaying = isPlaying.value;
-
-              // 重建為帶有 CORS 的變調模式
-              if (currentSong.value) {
-                await playSongById(currentSong.value.id, true);
-                if (vocalAudio) {
-                  vocalAudio.currentTime = savedTime;
-                  if (wasPlaying) {
-                    vocalAudio.play().then(() => {
-                      if (hasCompanion.value && instAudio) instAudio.play();
-                      isPlaying.value = true;
-                    }).catch(e => console.warn(e));
-                  }
-                }
-              }
-            } else {
-              // 已經是變調模式直接更新 PitchShifter 節點值
-              if (tonePitchShiftNode) tonePitchShiftNode.pitch = pitchShift.value;
-            }
-          } else {
-            // 歸零：安全起見切回標準原生模式
-            resetPitch();
+        // 即時調整升降 Key
+        const adjustPitch = (amount) => {
+          initAudioEngine();
+          pitchShift.value = Math.max(-6, Math.min(6, pitchShift.value + amount));
+          if (tonePitchShiftNode) {
+            tonePitchShiftNode.pitch = pitchShift.value;
           }
-          updateVolume();
         };
 
-        // 重置為原調
-        const resetPitch = async () => {
+        const resetPitch = () => {
           pitchShift.value = 0;
-          if (isAudioEngineStarted) {
-            const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
-            const wasPlaying = isPlaying.value;
-
-            // 強制切回免 CORS 的原生模式播放
-            if (currentSong.value) {
-              await playSongById(currentSong.value.id, false);
-              if (vocalAudio) {
-                vocalAudio.currentTime = savedTime;
-                if (wasPlaying) {
-                  vocalAudio.play().then(() => {
-                    if (hasCompanion.value && instAudio) instAudio.play();
-                    isPlaying.value = true;
-                  }).catch(e => console.warn(e));
-                }
-              }
-            }
+          if (tonePitchShiftNode) {
+            tonePitchShiftNode.pitch = 0;
           }
-          updateVolume();
         };
 
-        // 點播指定歌曲 (forceUseTone 可強制覆寫引擎類型)
-        const playSongById = async (id, forceUseTone = null) => {
+        // 點播歌曲
+        const playSongById = async (id) => {
+          initAudioEngine();
+          
           const idx = filteredSongs.value.findIndex(s => s.id === id);
           if (idx === -1) return;
 
           currentSongIndex.value = idx;
           isPlaying.value = false;
 
-          const song = filteredSongs.value[idx];
-          const useTone = forceUseTone !== null ? forceUseTone : (pitchShift.value !== 0);
+          // 獲取去空格標準格式直連 URL
+          const vocalSrc = currentSrcVocal.value;
+          const instSrc = currentSrcInst.value;
 
-          // 初始化或重建音訊元件，動態切換 CORS 環境
-          setupAudioEngine(useTone);
-
-          // 🌟 智慧雙軌：自動偵測是 Google Drive ID 還是第三方完整音樂 URL
-          const vId = song.vocalDriveId;
-          if (vId.startsWith('http://') || vId.startsWith('https://')) {
-            // A 情況：這是一條完整的 HTTP 音訊網址，直接播放，不需多餘 Fallback
-            vocalFallbacks.value = [vId];
-          } else {
-            // B 情況：這是一個標準 Google Drive FileID，生成多重容錯網址清單
-            vocalFallbacks.value = [
-              `https://lh3.googleusercontent.com/d/${vId}`,                               // 1. Google CDN 直連 (最推薦，變調原生皆完美免 CORS)
-              `https://docs.google.com/uc?export=download&id=${vId}`,                     // 2. 傳統 Docs UC 備份
-              `https://drive.google.com/uc?export=download&id=${vId}`                     // 3. 傳統 Drive UC 端點
-            ];
-          }
-          vocalFallbackIndex.value = 0;
-
-          if (song.instDriveId) {
-            const iId = song.instDriveId;
-            if (iId.startsWith('http://') || iId.startsWith('https://')) {
-              instFallbacks.value = [iId];
-            } else {
-              instFallbacks.value = [
-                `https://lh3.googleusercontent.com/d/${iId}`,
-                `https://docs.google.com/uc?export=download&id=${iId}`,
-                `https://drive.google.com/uc?export=download&id=${iId}`
-              ];
-            }
-            instFallbackIndex.value = 0;
-          } else {
-            instFallbacks.value = [];
-            instFallbackIndex.value = 0;
+          if (!vocalSrc) {
+            triggerToast("⚠️ 找不到該歌曲的雲端硬碟 ID，請核對檔名並重新配對！");
+            return;
           }
 
-          // 指派第一個優先級音軌來源並加載
-          vocalAudio.src = vocalFallbacks.value[0];
+          // 直接替換 Src 加載
+          vocalAudio.src = vocalSrc;
           vocalAudio.load();
 
-          if (song.instDriveId) {
-            instAudio.src = instFallbacks.value[0];
+          if (instSrc) {
+            instAudio.src = instSrc;
             instAudio.load();
-            faderValue.value = 0; // 重置
+            faderValue.value = 0; // 重置原唱優先
           } else {
             instAudio.src = '';
           }
 
           try {
             await vocalAudio.play();
-            if (song.instDriveId && instAudio) {
+            if (instSrc) {
               await instAudio.play();
             }
             isPlaying.value = true;
           } catch (e) {
-            console.warn("自動播放暫時被阻擋，等待使用者手動點擊播放按鈕:", e);
+            console.warn("自動播放暫時被阻擋，已等待手動觸發播放:", e);
           }
           
           updateVolume();
         };
 
         const togglePlay = async () => {
-          if (!vocalAudio) {
-            setupAudioEngine(pitchShift.value !== 0);
-          }
+          initAudioEngine();
           if (currentSongIndex.value === -1 && filteredSongs.value.length > 0) {
             await playSongById(filteredSongs.value[0].id);
             return;
@@ -865,12 +652,12 @@
 
           if (isPlaying.value) {
             vocalAudio.pause();
-            if (hasCompanion.value && instAudio) instAudio.pause();
+            if (hasCompanion.value) instAudio.pause();
             isPlaying.value = false;
           } else {
             try {
               await vocalAudio.play();
-              if (hasCompanion.value && instAudio) await instAudio.play();
+              if (hasCompanion.value) await instAudio.play();
               isPlaying.value = true;
             } catch (e) {
               console.error(e);
@@ -896,10 +683,9 @@
           if (filteredSongs.value.length === 0) return;
           
           if (playModel.value === 'anchor') {
-            // 單曲循環
             vocalAudio.currentTime = 0;
             vocalAudio.play();
-            if (hasCompanion.value && instAudio) {
+            if (hasCompanion.value) {
               instAudio.currentTime = 0;
               instAudio.play();
             }
@@ -912,14 +698,14 @@
         };
 
         const seekAudio = (e) => {
-          if (!vocalAudio || !duration.value) return;
+          if (!isEngineInitialized || !duration.value) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const clickX = e.clientX - rect.left;
           const targetPercent = clickX / rect.width;
           const targetTime = targetPercent * duration.value;
 
           vocalAudio.currentTime = targetTime;
-          if (hasCompanion.value && instAudio) {
+          if (hasCompanion.value) {
             instAudio.currentTime = targetTime;
           }
         };
@@ -1116,10 +902,7 @@
         };
 
         onMounted(() => {
-          // 初始化時讀取遠端 API 資料庫
           fetchDatabase();
-          
-          // 若為初訪客，提示填寫資料
           if (!userName.value) {
             setTimeout(() => {
               showSettingsModal.value = true;
@@ -1128,7 +911,6 @@
         });
 
         return {
-          // 設定與 Toast
           gasApiUrl,
           userName,
           visitors,
@@ -1138,7 +920,6 @@
           toastMessage,
           triggerToast,
 
-          // 播放清單與過濾
           showSongList,
           searchQuery,
           showMyPlaylistOnly,
@@ -1149,7 +930,6 @@
           currentLyricRaw,
           currentLrcIndex,
 
-          // 控制
           isPlaying,
           currentTime,
           duration,
@@ -1160,7 +940,6 @@
           pitchShift,
           hasCompanion,
 
-          // Modals
           showOrderModal,
           showUploadModal,
           showInfoModal,
@@ -1168,7 +947,6 @@
           orderForm,
           uploadForm,
 
-          // 功能方法
           toggleShow,
           playSongById,
           togglePlay,
@@ -1189,9 +967,7 @@
       }
     }).mount('#app');
 
-    // ==========================================================================
-    // PWA Service Worker 註冊機制 (改用標準獨立 sw.js 實體檔案)
-    // ==========================================================================
+    // 註冊 Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')

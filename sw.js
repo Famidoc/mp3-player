@@ -3,9 +3,9 @@
  * 用於處理前端靜態資源的離線快取
  */
 
-const CACHE_NAME = 'mp3player-v2';
+const CACHE_NAME = 'mp3player-v5';
 
-// 需要快取的靜態資源清單 (相對路徑以支援 GitHub Pages 的子目錄)
+// 需要快取的靜態資源清單
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -42,22 +42,19 @@ self.addEventListener('activate', event => {
   );
 });
 
-// 3. 攔截請求：優先讀取快取 (快取優先原則，音頻流與 API 則直接聯網)
+// 3. 攔截請求：極速避開跨網域 Range 媒體請求 Bug
 self.addEventListener('fetch', event => {
-  const url = event.request.url;
+  const url = new URL(event.request.url);
 
-  // 排除 Google Drive 的 MP3 音頻串流與 GAS 的 API 請求，避免 CORS 混亂或跨域快取失敗
-  if (
-    url.includes('docs.google.com') || 
-    url.includes('googleusercontent') || 
-    url.includes('script.google.com')
-  ) {
-    return; // 讓瀏覽器直接走標準網絡請求
+  // 💡 關鍵修復：只要是跨來源請求（如 Google Drive docs.google.com），
+  // Service Worker 徹底不予攔截、不予處理，直接 return 跳出！
+  // 這能 100% 完美繞過瀏覽器在 Service Worker 內處理音訊分段 Range (206) 請求時引發的 CORS 阻擋 Bug！
+  if (url.origin !== self.location.origin) {
+    return; 
   }
 
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
-      // 若有快取則使用快取，否則發送網絡請求
       return cachedResponse || fetch(event.request);
     })
   );
