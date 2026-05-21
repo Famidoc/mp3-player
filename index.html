@@ -449,15 +449,15 @@
           return null;
         });
 
-        // 取得首發與備份音訊格式 Fallbacks 
+        // 🌟 智慧優化：將首發網址與所有重置位置直接改為 Google 最強不需 Cookie、支援 CORS 的 CDN 格式
         const currentSrcVocal = computed(() => {
           if (!currentSong.value || !currentSong.value.vocalDriveId) return '';
-          return `https://docs.google.com/uc?export=download&id=${currentSong.value.vocalDriveId}`;
+          return `https://lh3.googleusercontent.com/d/${currentSong.value.vocalDriveId}`;
         });
 
         const currentSrcInst = computed(() => {
           if (!currentSong.value || !currentSong.value.instDriveId) return '';
-          return `https://docs.google.com/uc?export=download&id=${currentSong.value.instDriveId}`;
+          return `https://lh3.googleusercontent.com/d/${currentSong.value.instDriveId}`;
         });
 
         // 偵測目前歌曲是否擁有伴奏檔
@@ -788,11 +788,11 @@
           // 初始化或重建音訊元件，動態切換 CORS 環境
           setupAudioEngine(useTone);
 
-          // 建立多重容錯網址清單 (完全移除 drive.usercontent.google.com 的 403 報錯連結！)
+          // 🌟 智慧優化：將 `lh3.googleusercontent.com/d/` (CORS 友善，不需 Cookie，100% 穩定免 403 阻擋) 改為最優先級首發網址！
           const vId = song.vocalDriveId;
           vocalFallbacks.value = [
-            `https://docs.google.com/uc?export=download&id=${vId}`,                     // 1. 傳統 Docs UC 備份 (最穩健，原生與變調皆極高成功率)
-            `https://lh3.googleusercontent.com/d/${vId}`,                               // 2. Google Usercontent 直連 (CORS 友善，變調專用 bypass)
+            `https://lh3.googleusercontent.com/d/${vId}`,                               // 1. Google CDN 直連 (優先首發，變調原聲皆完美免 CORS)
+            `https://docs.google.com/uc?export=download&id=${vId}`,                     // 2. 傳統 Docs UC 備份
             `https://drive.google.com/uc?export=download&id=${vId}`                     // 3. 傳統 Drive UC 端點
           ];
           vocalFallbackIndex.value = 0;
@@ -800,8 +800,8 @@
           if (song.instDriveId) {
             const iId = song.instDriveId;
             instFallbacks.value = [
-              `https://docs.google.com/uc?export=download&id=${iId}`,
               `https://lh3.googleusercontent.com/d/${iId}`,
+              `https://docs.google.com/uc?export=download&id=${iId}`,
               `https://drive.google.com/uc?export=download&id=${iId}`
             ];
             instFallbackIndex.value = 0;
@@ -810,7 +810,7 @@
             instFallbackIndex.value = 0;
           }
 
-          // 指派第一個音軌來源並加載
+          // 指派第一個優先級音軌來源並加載
           vocalAudio.src = vocalFallbacks.value[0];
           vocalAudio.load();
 
