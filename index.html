@@ -427,7 +427,7 @@
         // 原伴唱混合拉桿 (0 = 完全原唱, 1 = 完全伴奏, 0.5 = 混音各半)
         const faderValue = ref(0); 
 
-        // 全域復用單例 Audio 物件以避免 gesture loss 
+        // 全域復用單例 Audio 物件
         let vocalAudio = null;
         let instAudio = null;
         let toneVocalSource = null;
@@ -452,12 +452,12 @@
         // 取得首發與備份音訊格式 Fallbacks 
         const currentSrcVocal = computed(() => {
           if (!currentSong.value || !currentSong.value.vocalDriveId) return '';
-          return `https://drive.usercontent.google.com/download?id=${currentSong.value.vocalDriveId}&export=download`;
+          return `https://docs.google.com/uc?export=download&id=${currentSong.value.vocalDriveId}`;
         });
 
         const currentSrcInst = computed(() => {
           if (!currentSong.value || !currentSong.value.instDriveId) return '';
-          return `https://drive.usercontent.google.com/download?id=${currentSong.value.instDriveId}&export=download`;
+          return `https://docs.google.com/uc?export=download&id=${currentSong.value.instDriveId}`;
         });
 
         // 偵測目前歌曲是否擁有伴奏檔
@@ -555,18 +555,61 @@
            🌟 核心智慧音訊引擎：原生與 Tone.js 變調雙模組動態調配 (解決 CORS 錯誤)
            ========================================================================= */
         
-        // 智慧型單例（Singleton）初始化，避免因為重新創建 Audio 物件而丟失 User Gesture
-        const initAudioEngineOnce = () => {
-          if (vocalAudio) return; // 已經載入
+        // 智慧型初始化，每次切換「變調」與「原生」時都徹底重建，完全解綁 CORS 污染！
+        const setupAudioEngine = (useTone) => {
+          // 1. 如果已有舊物件，徹底暫停、卸載並釋放記憶體
+          if (vocalAudio) {
+            vocalAudio.pause();
+            vocalAudio.src = "";
+            vocalAudio = null;
+          }
+          if (instAudio) {
+            instAudio.pause();
+            instAudio.src = "";
+            instAudio = null;
+          }
 
+          // 2. 建立全新、乾淨的 Audio 物件
           vocalAudio = new Audio();
           instAudio = new Audio();
 
-          // 綁定音訊標準監聽器 (一次性綁定)
+          if (useTone) {
+            // A 模式：Tone.js 變調模式 (啟用 CORS 認證以允許 Web Audio API 解碼)
+            try {
+              Tone.start();
+              vocalAudio.crossOrigin = "anonymous";
+              instAudio.crossOrigin = "anonymous";
+
+              // 建立 MediaElementSource (因為是新的 Audio 物件，必須重新建立)
+              toneVocalSource = new Tone.MediaElementSource(vocalAudio);
+              toneInstSource = new Tone.MediaElementSource(instAudio);
+
+              if (!tonePitchShiftNode) {
+                tonePitchShiftNode = new Tone.PitchShift(pitchShift.value);
+                tonePitchShiftNode.toDestination();
+              } else {
+                tonePitchShiftNode.pitch = pitchShift.value;
+              }
+
+              toneVocalSource.connect(tonePitchShiftNode);
+              toneInstSource.connect(tonePitchShiftNode);
+              isAudioEngineStarted = true;
+              console.log("🔊 引擎切換：Tone.js 變調模式 (已設定 crossOrigin = anonymous)");
+            } catch (err) {
+              console.error("Tone.js 變調初始化失敗，安全降級為原生:", err);
+              return setupAudioEngine(false); // 降級防落
+            }
+          } else {
+            // B 模式：原生安全播放模式 (完全免 CORS，100% 繞過 Google Drive 的 Cookie 限制！)
+            vocalAudio.removeAttribute('crossorigin');
+            instAudio.removeAttribute('crossorigin');
+            isAudioEngineStarted = false;
+            console.log("🔊 引擎切換：標準原生播放模式 (無 CORS 限制，免疫 Drive 封鎖)");
+          }
+
+          // 3. 重新綁定所有音訊監聽器
           vocalAudio.addEventListener('timeupdate', () => {
             currentTime.value = vocalAudio.currentTime;
-            
-            // 原唱與伴唱的極速糾偏 (大於 0.15 秒強制拉齊)
             if (hasCompanion.value && instAudio && Math.abs(vocalAudio.currentTime - instAudio.currentTime) > 0.15) {
               instAudio.currentTime = vocalAudio.currentTime;
             }
@@ -583,33 +626,53 @@
           // 🌟 智慧 Vocal CORS 與鏈路失效自動修復防落
           vocalAudio.addEventListener('error', async () => {
             const err = vocalAudio.error;
-            console.warn("⚠️ Vocal 播放遭遇網路或解碼錯誤:", err);
+            console.warn("⚠️ Vocal 播放遭遇錯誤，代碼:", err ? err.code : '未知');
             
+            // 如果在變調模式下因 CORS 阻擋失敗，立即智慧降級到原生模式
+            if (useTone) {
+              console.warn("🔄 [CORS 解碼失敗防護] 變調模式加載失敗，立即自動切回原調原生模式...");
+              triggerToast("⚠️ 因雲端安全限制，此歌曲暫不支援變調，已自動切回「原調」播放！");
+              pitchShift.value = 0;
+              const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
+              const wasPlaying = isPlaying.value;
+              const currentIdTemp = currentSong.value ? currentSong.value.id : null;
+
+              if (currentIdTemp) {
+                setTimeout(async () => {
+                  await playSongById(currentIdTemp, false); // 強制以原生安全模式播放
+                  if (vocalAudio) {
+                    vocalAudio.currentTime = savedTime;
+                    if (wasPlaying) {
+                      try { await vocalAudio.play(); isPlaying.value = true; } catch(e) {}
+                    }
+                  }
+                }, 100);
+              }
+              return;
+            }
+
+            // 如果已經是原生模式還出錯，代表該 URL 失效，嘗試 Fallback 機制
             if (vocalFallbackIndex.value < vocalFallbacks.value.length - 1) {
               vocalFallbackIndex.value++;
               const savedTime = vocalAudio.currentTime;
-              console.log(`🔄 [自動修復] 嘗試切換至第 ${vocalFallbackIndex.value + 1} 順位備用音軌來源...`);
+              console.log(`🔄 [鏈路自動修復] 切換至第 ${vocalFallbackIndex.value + 1} 順位來源...`);
               
               vocalAudio.src = vocalFallbacks.value[vocalFallbackIndex.value];
               vocalAudio.load();
               vocalAudio.currentTime = savedTime;
 
-              try {
-                await vocalAudio.play();
-                isPlaying.value = true;
-              } catch (e) {
-                console.warn("備用音軌嘗試播放中斷:", e);
+              if (isPlaying.value) {
+                try { await vocalAudio.play(); } catch(e) {}
               }
             } else {
-              triggerToast("❌ 所有伺服器音軌加載失敗。請確認您的網路環境，或確認您的 Google Drive 資料夾權限已被分享為「知道連結的使用者皆可檢視」。");
+              triggerToast("❌ 所有備用音軌皆讀取失敗。請確認您的 Google Drive 檔案已設定為「知道連結的使用者皆可檢視」。");
               isPlaying.value = false;
             }
           });
 
           // 🌟 智慧 Inst (伴奏) CORS 與鏈路失效自動修復防落
           instAudio.addEventListener('error', async () => {
-            const err = instAudio.error;
-            console.warn("⚠️ 伴奏音軌加載錯誤:", err);
+            console.warn("⚠️ 伴奏音軌加載錯誤，嘗試備用連結...");
             if (instFallbackIndex.value < instFallbacks.value.length - 1) {
               instFallbackIndex.value++;
               const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
@@ -618,11 +681,11 @@
               instAudio.currentTime = savedTime;
               try {
                 if (isPlaying.value) await instAudio.play();
-              } catch (e) {
-                console.warn("伴奏備用音軌嘗試播放中斷:", e);
-              }
+              } catch(e) {}
             }
           });
+
+          updateVolume();
         };
 
         // 更新原伴唱 Crossfader 比例與音量
@@ -713,8 +776,6 @@
 
         // 點播指定歌曲 (forceUseTone 可強制覆寫引擎類型)
         const playSongById = async (id, forceUseTone = null) => {
-          initAudioEngineOnce();
-
           const idx = filteredSongs.value.findIndex(s => s.id === id);
           if (idx === -1) return;
 
@@ -724,62 +785,24 @@
           const song = filteredSongs.value[idx];
           const useTone = forceUseTone !== null ? forceUseTone : (pitchShift.value !== 0);
 
-          // 動態配製 Audio 節點上的 CORS 標籤
-          if (useTone) {
-            try {
-              await Tone.start();
-              vocalAudio.crossOrigin = "anonymous";
-              instAudio.crossOrigin = "anonymous";
+          // 初始化或重建音訊元件，動態切換 CORS 環境
+          setupAudioEngine(useTone);
 
-              if (!toneVocalSource) {
-                toneVocalSource = new Tone.MediaElementSource(vocalAudio);
-                toneInstSource = new Tone.MediaElementSource(instAudio);
-              }
-              if (!tonePitchShiftNode) {
-                tonePitchShiftNode = new Tone.PitchShift(pitchShift.value);
-                tonePitchShiftNode.toDestination();
-              } else {
-                tonePitchShiftNode.pitch = pitchShift.value;
-              }
-
-              // 連接至變調節點
-              toneVocalSource.disconnect();
-              toneInstSource.disconnect();
-              toneVocalSource.connect(tonePitchShiftNode);
-              toneInstSource.connect(tonePitchShiftNode);
-              isAudioEngineStarted = true;
-              console.log("🔊 引擎已切換：Tone.js 變調解碼");
-            } catch (e) {
-              console.error("Tone.js 載入失敗，降級至原生:", e);
-              vocalAudio.crossOrigin = null;
-              instAudio.crossOrigin = null;
-              isAudioEngineStarted = false;
-            }
-          } else {
-            // 100% 免疫 Google Drive CORS 跨網域政策的安全直連模式
-            vocalAudio.removeAttribute('crossorigin');
-            instAudio.removeAttribute('crossorigin');
-            vocalAudio.crossOrigin = null;
-            instAudio.crossOrigin = null;
-            isAudioEngineStarted = false;
-            console.log("🔊 引擎已切換：安全免認證原生模式");
-          }
-
-          // 建立智慧型多順位容錯修復 Fallbacks
+          // 建立多重容錯網址清單 (完全移除 drive.usercontent.google.com 的 403 報錯連結！)
           const vId = song.vocalDriveId;
           vocalFallbacks.value = [
-            `https://drive.usercontent.google.com/download?id=${vId}&export=download`, // 1. Google Drive 新版免 Cookie 節點 (最高優先、極速且支援 CORS)
-            `https://drive.google.com/uc?export=download&id=${vId}`,                     // 2. 傳統 Drive UC 端點
-            `https://docs.google.com/uc?export=download&confirm=no&id=${vId}`             // 3. 傳統 Docs UC 備份
+            `https://docs.google.com/uc?export=download&id=${vId}`,                     // 1. 傳統 Docs UC 備份 (最穩健，原生與變調皆極高成功率)
+            `https://lh3.googleusercontent.com/d/${vId}`,                               // 2. Google Usercontent 直連 (CORS 友善，變調專用 bypass)
+            `https://drive.google.com/uc?export=download&id=${vId}`                     // 3. 傳統 Drive UC 端點
           ];
           vocalFallbackIndex.value = 0;
 
           if (song.instDriveId) {
             const iId = song.instDriveId;
             instFallbacks.value = [
-              `https://drive.usercontent.google.com/download?id=${iId}&export=download`,
-              `https://drive.google.com/uc?export=download&id=${iId}`,
-              `https://docs.google.com/uc?export=download&confirm=no&id=${iId}`
+              `https://docs.google.com/uc?export=download&id=${iId}`,
+              `https://lh3.googleusercontent.com/d/${iId}`,
+              `https://drive.google.com/uc?export=download&id=${iId}`
             ];
             instFallbackIndex.value = 0;
           } else {
@@ -787,7 +810,7 @@
             instFallbackIndex.value = 0;
           }
 
-          // 安全指派並載入第一個格式音軌
+          // 指派第一個音軌來源並加載
           vocalAudio.src = vocalFallbacks.value[0];
           vocalAudio.load();
 
@@ -806,14 +829,16 @@
             }
             isPlaying.value = true;
           } catch (e) {
-            console.warn("自動播放暫時被阻擋，等待使用者點擊播放按紐:", e);
+            console.warn("自動播放暫時被阻擋，等待使用者手動點擊播放按鈕:", e);
           }
           
           updateVolume();
         };
 
         const togglePlay = async () => {
-          initAudioEngineOnce();
+          if (!vocalAudio) {
+            setupAudioEngine(pitchShift.value !== 0);
+          }
           if (currentSongIndex.value === -1 && filteredSongs.value.length > 0) {
             await playSongById(filteredSongs.value[0].id);
             return;
