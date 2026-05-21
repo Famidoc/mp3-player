@@ -402,7 +402,7 @@
           showToast.value = true;
           setTimeout(() => {
             showToast.value = false;
-          }, 3500);
+          }, 4500);
         };
 
         // Modals 顯示控制
@@ -433,7 +433,7 @@
         let toneVocalSource = null;
         let toneInstSource = null;
         let tonePitchShiftNode = null;
-        let isAudioEngineStarted = false;
+        let isAudioEngineStarted = false; // 是否正在使用 Tone 變調引擎模式
 
         // 計算目前播放中歌曲
         const currentSong = computed(() => {
@@ -546,41 +546,64 @@
         });
 
         /* ==========================================================================
-           核心音訊處理引擎 (Tone.js & Web Audio)
+           🌟 核心智慧音訊引擎：原生+變調 雙模動態調配 (解決 CORS 錯誤)
            ========================================================================= */
         
-        // 初始化音軌控制節點
-        const initAudioEngine = () => {
-          if (isAudioEngineStarted) return;
-          
-          // 啟用瀏覽器 Web Audio 上下文
-          Tone.start();
+        // 智慧初始化與防護降級核心
+        const initAudioEngine = (useTone) => {
+          // 1. 如果舊物件存在，先銷毀、暫停並清理，徹底避免路由殘留
+          if (vocalAudio) {
+            vocalAudio.pause();
+            vocalAudio.src = "";
+            vocalAudio = null;
+          }
+          if (instAudio) {
+            instAudio.pause();
+            instAudio.src = "";
+            instAudio = null;
+          }
 
-          // 創建兩個獨立的原生 HTML5 Audio，用來保持緩衝串流
+          // 2. 建立全新的 Audio DOM
           vocalAudio = new Audio();
-          vocalAudio.crossOrigin = "anonymous";
-
           instAudio = new Audio();
-          instAudio.crossOrigin = "anonymous";
 
-          // 將 Audio 連接並導向至 Tone.js 的節點以處理 Pitch Shifting
-          toneVocalSource = new Tone.MediaElementSource(vocalAudio);
-          toneInstSource = new Tone.MediaElementSource(instAudio);
+          if (useTone) {
+            // A 模式：Tone.js 變調模式 (需要 crossOrigin 支持)
+            try {
+              Tone.start();
+              vocalAudio.crossOrigin = "anonymous";
+              instAudio.crossOrigin = "anonymous";
 
-          // 創建 Pitch Shifter 節點
-          tonePitchShiftNode = new Tone.PitchShift(0);
+              toneVocalSource = new Tone.MediaElementSource(vocalAudio);
+              toneInstSource = new Tone.MediaElementSource(instAudio);
 
-          // 連接架構：音源 -> 升降音節點 -> 主輸出 Destination
-          toneVocalSource.connect(tonePitchShiftNode);
-          toneInstSource.connect(tonePitchShiftNode);
-          tonePitchShiftNode.toDestination();
+              if (!tonePitchShiftNode) {
+                tonePitchShiftNode = new Tone.PitchShift(pitchShift.value);
+                tonePitchShiftNode.toDestination();
+              } else {
+                tonePitchShiftNode.pitch = pitchShift.value;
+              }
 
-          // 綁定原生監聽器，確保原唱/伴奏完全同步
+              toneVocalSource.connect(tonePitchShiftNode);
+              toneInstSource.connect(tonePitchShiftNode);
+              isAudioEngineStarted = true;
+              console.log("🔊 已切換至：Tone.js 變調音頻引擎");
+            } catch (err) {
+              console.error("Tone.js 初始化失敗，安全自動降級:", err);
+              return initAudioEngine(false); // 安全防落
+            }
+          } else {
+            // B 模式：最安全的原聲模式 (完全不帶 crossOrigin，100% 免疫 Google Drive CORS 封鎖)
+            isAudioEngineStarted = false;
+            console.log("🔊 已切換至：標準安全原生播放模式");
+          }
+
+          // 3. 綁定音訊標準監聽器
           vocalAudio.addEventListener('timeupdate', () => {
             currentTime.value = vocalAudio.currentTime;
             
-            // 伴奏與原唱同步糾偏：如果時間差大於 0.1 秒，強制對齊伴奏
-            if (hasCompanion.value && Math.abs(vocalAudio.currentTime - instAudio.currentTime) > 0.1) {
+            // 原唱與伴唱的極速糾偏 (大於 0.15 秒強制拉齊)
+            if (hasCompanion.value && instAudio && Math.abs(vocalAudio.currentTime - instAudio.currentTime) > 0.15) {
               instAudio.currentTime = vocalAudio.currentTime;
             }
           });
@@ -593,26 +616,57 @@
             playNextSongAuto();
           });
 
-          isAudioEngineStarted = true;
+          // 4. ✨ 智慧 CORS 解碼錯誤守護者
+          vocalAudio.addEventListener('error', () => {
+            const err = vocalAudio.error;
+            // 只有在啟用 Tone 模式，且真的遭遇到 Google CORS 解碼阻擋時觸發自動防落
+            if (err && useTone) {
+              console.warn("⚠️ 偵測到雲端音訊 CORS 解碼錯誤！啟動智慧防落機制...", err);
+              triggerToast("⚠️ 本首歌曲受限於雲端安全機制，已自動切回「原調模式」播放。");
+              pitchShift.value = 0; // 重置升降調
+
+              const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
+              const wasPlaying = isPlaying.value;
+              const currentIdTemp = currentSong.value ? currentSong.value.id : null;
+
+              // 立即重建為「安全原生模式」並引導播放
+              initAudioEngine(false);
+
+              if (currentIdTemp) {
+                setTimeout(async () => {
+                  await playSongById(currentIdTemp, false); // 強制用原生安全播放
+                  if (vocalAudio) {
+                    vocalAudio.currentTime = savedTime;
+                    if (wasPlaying) {
+                      await vocalAudio.play();
+                      isPlaying.value = true;
+                    }
+                  }
+                }, 150);
+              }
+            }
+          });
+
           updateVolume();
         };
 
-        // 更新原伴唱 Crossfader 比例
+        // 更新原伴唱 Crossfader 比例與音量
         const updateFader = () => {
-          if (!isAudioEngineStarted) return;
-          // 聲音加載判斷
-          if (hasCompanion.value) {
-            // 0: 全原聲, 1: 全伴奏
-            vocalAudio.volume = (1 - faderValue.value) * (isMuted.value ? 0 : volume.value);
-            instAudio.volume = faderValue.value * (isMuted.value ? 0 : volume.value);
+          if (!vocalAudio) return;
+          const currentVolume = isMuted.value ? 0 : volume.value;
+          
+          if (hasCompanion.value && instAudio) {
+            // 雙聲道比例分配
+            vocalAudio.volume = (1 - faderValue.value) * currentVolume;
+            instAudio.volume = faderValue.value * currentVolume;
           } else {
-            vocalAudio.volume = isMuted.value ? 0 : volume.value;
-            instAudio.volume = 0;
+            // 單聲道播放
+            vocalAudio.volume = currentVolume;
+            if (instAudio) instAudio.volume = 0;
           }
         };
 
         const updateVolume = () => {
-          if (!isAudioEngineStarted) return;
           updateFader();
         };
 
@@ -621,28 +675,94 @@
           updateVolume();
         };
 
-        // 即時升降 Key (Tone.js 核心演算法，不影響速度)
+        // 調整升降 Key
         const adjustPitch = (amount) => {
-          initAudioEngine();
-          pitchShift.value = Math.max(-6, Math.min(6, pitchShift.value + amount));
-          tonePitchShiftNode.pitch = pitchShift.value;
+          const newPitch = Math.max(-6, Math.min(6, pitchShift.value + amount));
+          if (newPitch === pitchShift.value) return;
+
+          pitchShift.value = newPitch;
+
+          if (pitchShift.value !== 0) {
+            // 變調模式：若非 Tone 引擎，需動態重構
+            if (!isAudioEngineStarted) {
+              const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
+              const wasPlaying = isPlaying.value;
+
+              initAudioEngine(true); // 重建
+
+              if (currentSong.value) {
+                vocalAudio.src = currentSrcVocal.value;
+                vocalAudio.load();
+                vocalAudio.currentTime = savedTime;
+
+                if (hasCompanion.value && instAudio) {
+                  instAudio.src = currentSrcInst.value;
+                  instAudio.load();
+                  instAudio.currentTime = savedTime;
+                }
+
+                if (wasPlaying) {
+                  vocalAudio.play().then(() => {
+                    if (hasCompanion.value && instAudio) instAudio.play();
+                    isPlaying.value = true;
+                  }).catch(e => console.warn(e));
+                }
+              }
+            } else {
+              // 已是 Tone 模式直接更新
+              if (tonePitchShiftNode) tonePitchShiftNode.pitch = pitchShift.value;
+            }
+          } else {
+            // 歸零：安全起見切回原生模式
+            resetPitch();
+          }
+          updateVolume();
         };
 
+        // 重置為原調
         const resetPitch = () => {
           pitchShift.value = 0;
-          if (tonePitchShiftNode) tonePitchShiftNode.pitch = 0;
+          if (isAudioEngineStarted) {
+            const savedTime = vocalAudio ? vocalAudio.currentTime : 0;
+            const wasPlaying = isPlaying.value;
+
+            initAudioEngine(false); // 切回安全原生
+
+            if (currentSong.value) {
+              vocalAudio.src = currentSrcVocal.value;
+              vocalAudio.load();
+              vocalAudio.currentTime = savedTime;
+
+              if (hasCompanion.value && instAudio) {
+                instAudio.src = currentSrcInst.value;
+                instAudio.load();
+                instAudio.currentTime = savedTime;
+              }
+
+              if (wasPlaying) {
+                vocalAudio.play().then(() => {
+                  if (hasCompanion.value && instAudio) instAudio.play();
+                  isPlaying.value = true;
+                }).catch(e => console.warn(e));
+              }
+            }
+          }
+          updateVolume();
         };
 
-        // 音軌載入與播放控制
-        const playSongById = async (id) => {
-          initAudioEngine();
+        // 點播指定歌曲 (forceUseTone 可強制覆寫引擎類型)
+        const playSongById = async (id, forceUseTone = null) => {
+          // 如果 pitchShift 為 0，強制以最安全的原生模式加載，免去 CORS
+          const shouldNeedTone = forceUseTone !== null ? forceUseTone : (pitchShift.value !== 0);
+          
+          initAudioEngine(shouldNeedTone);
+
           const idx = filteredSongs.value.findIndex(s => s.id === id);
           if (idx === -1) return;
 
           currentSongIndex.value = idx;
           isPlaying.value = false;
 
-          // 獲取當前直連音軌網址並重置
           const vocalSrc = currentSrcVocal.value;
           const instSrc = currentSrcInst.value;
 
@@ -652,40 +772,42 @@
           if (instSrc) {
             instAudio.src = instSrc;
             instAudio.load();
-            faderValue.value = 0; // 重置為預設原唱
+            faderValue.value = 0; // 重置
           } else {
             instAudio.src = '';
           }
 
           try {
             await vocalAudio.play();
-            if (instSrc) {
+            if (instSrc && instAudio) {
               await instAudio.play();
             }
             isPlaying.value = true;
           } catch (e) {
-            console.warn("自動播放遇到限制，等待使用者點擊:", e);
+            console.warn("自動播放受阻，已等待使用者手動點擊播放鈕:", e);
           }
           
           updateVolume();
         };
 
         const togglePlay = async () => {
-          initAudioEngine();
+          if (!vocalAudio) {
+            initAudioEngine(pitchShift.value !== 0);
+          }
+
           if (currentSongIndex.value === -1 && filteredSongs.value.length > 0) {
-            // 無播放中的歌曲，自動點選第一首
             await playSongById(filteredSongs.value[0].id);
             return;
           }
 
           if (isPlaying.value) {
             vocalAudio.pause();
-            if (hasCompanion.value) instAudio.pause();
+            if (hasCompanion.value && instAudio) instAudio.pause();
             isPlaying.value = false;
           } else {
             try {
               await vocalAudio.play();
-              if (hasCompanion.value) await instAudio.play();
+              if (hasCompanion.value && instAudio) await instAudio.play();
               isPlaying.value = true;
             } catch (e) {
               console.error(e);
@@ -714,29 +836,27 @@
             // 單曲循環
             vocalAudio.currentTime = 0;
             vocalAudio.play();
-            if (hasCompanion.value) {
+            if (hasCompanion.value && instAudio) {
               instAudio.currentTime = 0;
               instAudio.play();
             }
           } else if (playModel.value === 'random') {
-            // 隨機播放
             const randomIdx = Math.floor(Math.random() * filteredSongs.value.length);
             playSongById(filteredSongs.value[randomIdx].id);
           } else {
-            // 循序播放
             playNext();
           }
         };
 
         const seekAudio = (e) => {
-          if (!isAudioEngineStarted || !duration.value) return;
+          if (!vocalAudio || !duration.value) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const clickX = e.clientX - rect.left;
           const targetPercent = clickX / rect.width;
           const targetTime = targetPercent * duration.value;
 
           vocalAudio.currentTime = targetTime;
-          if (hasCompanion.value) {
+          if (hasCompanion.value && instAudio) {
             instAudio.currentTime = targetTime;
           }
         };
@@ -759,7 +879,6 @@
               songs.value = json.data.songs || [];
               visitors.value = json.data.visitors || {};
               
-              // 登入成功後，主動把本人加入本日訪客留名清單
               if (userName.value) {
                 registerVisitor();
               }
@@ -814,7 +933,6 @@
             });
             const json = await res.json();
             if (json.success) {
-              // 在前端更新狀態
               const index = songs.value.findIndex(s => s.id === song.id);
               if (index !== -1) {
                 songs.value[index] = json.song;
