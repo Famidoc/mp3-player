@@ -452,12 +452,21 @@
         // 🌟 智慧優化：將首發網址與所有重置位置直接改為 Google 最強不需 Cookie、支援 CORS 的 CDN 格式
         const currentSrcVocal = computed(() => {
           if (!currentSong.value || !currentSong.value.vocalDriveId) return '';
-          return `https://lh3.googleusercontent.com/d/${currentSong.value.vocalDriveId}`;
+          // 💡 防護升級：如果儲存的是完整 URL，直接使用；否則使用 Google 直連端點
+          const vId = currentSong.value.vocalDriveId;
+          if (vId.startsWith('http://') || vId.startsWith('https://')) {
+            return vId;
+          }
+          return `https://lh3.googleusercontent.com/d/${vId}`;
         });
 
         const currentSrcInst = computed(() => {
           if (!currentSong.value || !currentSong.value.instDriveId) return '';
-          return `https://lh3.googleusercontent.com/d/${currentSong.value.instDriveId}`;
+          const iId = currentSong.value.instDriveId;
+          if (iId.startsWith('http://') || iId.startsWith('https://')) {
+            return iId;
+          }
+          return `https://lh3.googleusercontent.com/d/${iId}`;
         });
 
         // 偵測目前歌曲是否擁有伴奏檔
@@ -788,22 +797,32 @@
           // 初始化或重建音訊元件，動態切換 CORS 環境
           setupAudioEngine(useTone);
 
-          // 🌟 智慧優化：將 `lh3.googleusercontent.com/d/` (CORS 友善，不需 Cookie，100% 穩定免 403 阻擋) 改為最優先級首發網址！
+          // 🌟 智慧雙軌：自動偵測是 Google Drive ID 還是第三方完整音樂 URL
           const vId = song.vocalDriveId;
-          vocalFallbacks.value = [
-            `https://lh3.googleusercontent.com/d/${vId}`,                               // 1. Google CDN 直連 (優先首發，變調原聲皆完美免 CORS)
-            `https://docs.google.com/uc?export=download&id=${vId}`,                     // 2. 傳統 Docs UC 備份
-            `https://drive.google.com/uc?export=download&id=${vId}`                     // 3. 傳統 Drive UC 端點
-          ];
+          if (vId.startsWith('http://') || vId.startsWith('https://')) {
+            // A 情況：這是一條完整的 HTTP 音訊網址，直接播放，不需多餘 Fallback
+            vocalFallbacks.value = [vId];
+          } else {
+            // B 情況：這是一個標準 Google Drive FileID，生成多重容錯網址清單
+            vocalFallbacks.value = [
+              `https://lh3.googleusercontent.com/d/${vId}`,                               // 1. Google CDN 直連 (最推薦，變調原生皆完美免 CORS)
+              `https://docs.google.com/uc?export=download&id=${vId}`,                     // 2. 傳統 Docs UC 備份
+              `https://drive.google.com/uc?export=download&id=${vId}`                     // 3. 傳統 Drive UC 端點
+            ];
+          }
           vocalFallbackIndex.value = 0;
 
           if (song.instDriveId) {
             const iId = song.instDriveId;
-            instFallbacks.value = [
-              `https://lh3.googleusercontent.com/d/${iId}`,
-              `https://docs.google.com/uc?export=download&id=${iId}`,
-              `https://drive.google.com/uc?export=download&id=${iId}`
-            ];
+            if (iId.startsWith('http://') || iId.startsWith('https://')) {
+              instFallbacks.value = [iId];
+            } else {
+              instFallbacks.value = [
+                `https://lh3.googleusercontent.com/d/${iId}`,
+                `https://docs.google.com/uc?export=download&id=${iId}`,
+                `https://drive.google.com/uc?export=download&id=${iId}`
+              ];
+            }
             instFallbackIndex.value = 0;
           } else {
             instFallbacks.value = [];
