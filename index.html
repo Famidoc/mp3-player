@@ -197,9 +197,10 @@
           <i class="fa fa-envelope text-lg text-green-400"></i>
           <span class="text-xs mt-1">點歌</span>
         </button>
-        <button @click="showUploadModal = true" class="text-slate-400 hover:text-white transition p-2 flex flex-col items-center">
-          <i class="fa fa-cloud-upload text-lg text-cyan-400"></i>
-          <span class="text-xs mt-1">上傳</span>
+        <button @click="openUploadModal" class="text-slate-400 hover:text-white transition p-2 flex flex-col items-center">
+					<i class="fa fa-folder-plus text-lg text-cyan-400"></i>
+					<span class="text-xs mt-1">建檔</span>
+				</button>
         </button>
         <button @click="playPrev" class="text-slate-300 hover:text-white transition p-2 text-xl active:scale-90">
           <i class="fa fa-step-backward"></i>
@@ -232,7 +233,7 @@
         <div class="space-y-4">
           <div>
             <label class="text-sm text-slate-400 block mb-1 font-bold">歌名</label>
-            <input type="text" v-model="orderForm.songName" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base text-slate-100 focus:border-green-500">
+            <input type="text" v-model="orderForm.songName" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base text-slate-100 	:border-green-500">
           </div>
           <div>
             <label class="text-sm text-slate-400 block mb-1 font-bold">原唱歌手</label>
@@ -248,8 +249,8 @@
 
     <div v-if="showUploadModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
-        <h3 class="text-xl font-bold text-cyan-400 flex items-center gap-2"><i class="fa fa-cloud-upload"></i> 從網址上傳 MP3</h3>
-        <p class="text-sm text-slate-400">提供可公開直連下載的 .mp3 網址，GAS 會自動抓取並安全存入您的 Drive。</p>
+        <h3 class="text-xl font-bold text-cyan-400 flex items-center gap-2"><i class="fa fa-folder-open"></i> 從硬碟檔名建檔</h3>
+        <p class="text-sm text-slate-400">請先將 MP3 上傳至雲端硬碟 <span class="text-cyan-400">MP3_Files</span> 資料夾，再於此輸入檔名與資料。</p>
         <div class="space-y-3">
           <div>
             <label class="text-sm text-slate-400 block mb-1 font-bold">歌名</label>
@@ -260,17 +261,21 @@
             <input type="text" v-model="uploadForm.singer" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-100 focus:border-cyan-500">
           </div>
           <div>
-            <label class="text-sm text-slate-400 block mb-1 font-bold">MP3 下載網址</label>
-            <input type="url" v-model="uploadForm.mp3Url" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-100 focus:border-cyan-500">
+            <label class="text-sm text-slate-400 block mb-1 font-bold text-yellow-400">點歌者 (多人請用逗號分隔)</label>
+            <input type="text" v-model="uploadForm.owners" placeholder="張文華, 陳錦慧..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-100 focus:border-yellow-500">
+          </div>
+          <div>
+            <label class="text-sm text-slate-400 block mb-1 font-bold text-emerald-400">Drive 完整檔名 (需含副檔名)</label>
+            <input type="text" v-model="uploadForm.fileName" placeholder="三拜紅塵涼.mp3" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-100 focus:border-emerald-500">
           </div>
           <div>
             <label class="text-sm text-slate-400 block mb-1 font-bold">LRC 動態歌詞</label>
-            <textarea v-model="uploadForm.lyric" rows="4" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-100 focus:border-cyan-500 font-mono"></textarea>
+            <textarea v-model="uploadForm.lyric" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-100 focus:border-cyan-500 font-mono"></textarea>
           </div>
         </div>
         <div class="flex gap-3 pt-3">
           <button @click="showUploadModal = false" class="flex-1 bg-slate-800 hover:bg-slate-700 py-2.5 rounded-xl text-sm transition">取消</button>
-          <button @click="submitUploadSong" :disabled="loading" class="flex-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 py-2.5 rounded-xl text-sm font-bold text-white transition">{{ loading ? '上傳中...' : '送出' }}</button>
+          <button @click="submitUploadSong" :disabled="loading" class="flex-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 py-2.5 rounded-xl text-sm font-bold text-white transition">{{ loading ? '配對建檔中...' : '送出建檔' }}</button>
         </div>
       </div>
     </div>
@@ -309,23 +314,28 @@
   </div>
 
   <script>
+    // 在此填入您在 Google Apps Script 部署取得的「網頁應用程式 URL」作為預設值
     const DEFAULT_GAS_API_URL = "YOUR_GAS_WEB_APP_URL_HERE";
+
     const { createApp, ref, computed, watch, nextTick, onMounted } = Vue;
 
     createApp({
       setup() {
+        // 系統基礎設定狀態
         const gasApiUrl = ref(localStorage.getItem('mp3player_gas_url') || DEFAULT_GAS_API_URL);
         const userName = ref(localStorage.getItem('mp3player_username') || '');
         const songs = ref([]);
         const visitors = ref({});
         const todayStr = new Date().toISOString().split('T')[0];
 
+        // 介面控制狀態
         const showSongList = ref(true);
         const searchQuery = ref('');
         const showMyPlaylistOnly = ref(false);
-        const playModel = ref('next');
+        const playModel = ref('next'); // 'next' | 'random' | 'anchor'
         const loading = ref(false);
 
+        // 自訂 Toast 提示狀態
         const showToast = ref(false);
         const toastMessage = ref('');
         const triggerToast = (msg) => {
@@ -334,20 +344,23 @@
           setTimeout(() => { showToast.value = false; }, 4500);
         };
 
+        // Modals 顯示控制
         const showOrderModal = ref(false);
         const showUploadModal = ref(false);
         const showInfoModal = ref(false);
         const showSettingsModal = ref(false);
 
+        // 表單資料結構
         const orderForm = ref({ songName: '', singerName: '' });
-        const uploadForm = ref({ title: '', singer: '', lyric: '', mp3Url: '' });
+        const uploadForm = ref({ title: '', singer: '', lyric: '', fileName: '', owners: '' });
 
-        // === 新增：編輯歌詞狀態 ===
+        // 歌詞即時編輯狀態
         const isEditingLyric = ref(false);
         const editableLyric = ref('');
         const loadingLyric = ref(false);
 
-        const currentSongIndex = ref(-1);
+        // 音訊控制核心狀態（完全改用唯一識別碼 ID 追蹤，徹底解決逆排序錯位問題）
+        const currentSongId = ref(''); 
         const isPlaying = ref(false);
         const currentTime = ref(0);
         const duration = ref(0);
@@ -356,21 +369,22 @@
         const pitchShift = ref(0);
         const faderValue = ref(0); 
 
+        // 全域複用單例 Audio 與 Tone 物件
         let vocalAudio = null;
         let instAudio = null;
         let tonePitchShiftNode = null;
         let isEngineInitialized = false;
 
+        // 計算目前播放中歌曲：直接用 ID 從主資料庫精確抓取
         const currentSong = computed(() => {
-          if (currentSongIndex.value >= 0 && currentSongIndex.value < filteredSongs.value.length) {
-            return filteredSongs.value[currentSongIndex.value];
-          }
-          return null;
+          return songs.value.find(s => s.id === currentSongId.value) || null;
         });
 
+        // 偵測目前歌曲是否擁有伴奏檔
         const hasCompanion = computed(() => currentSong.value && !!currentSong.value.instDriveId);
         const currentLyricRaw = computed(() => currentSong.value ? currentSong.value.lyric : '');
 
+        // 解析 LRC 動態歌詞格式
         const parsedLyrics = computed(() => {
           if (!currentLyricRaw.value) return [];
           const lines = currentLyricRaw.value.split('\n');
@@ -395,6 +409,7 @@
           return result;
         });
 
+        // 當前播放歌詞句的 Index 計算
         const currentLrcIndex = computed(() => {
           if (parsedLyrics.value.length === 0) return -1;
           for (let i = 0; i < parsedLyrics.value.length; i++) {
@@ -405,24 +420,31 @@
           return parsedLyrics.value.length - 1;
         });
 
+        // 自動高亮並滾動歌詞
         watch(currentLrcIndex, (newVal) => {
-          if (newVal === -1 || isEditingLyric.value) return; // 編輯中不滾動
+          if (newVal === -1 || isEditingLyric.value) return;
           nextTick(() => {
             const activeLine = document.getElementById(`lrc-line-${newVal}`);
-            if (activeLine) activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (activeLine) {
+              activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
           });
         });
 
+        // 本日留名訪客字串整理
         const visitorListString = computed(() => {
           const list = visitors.value[todayStr] || [];
           return list.length > 0 ? list.join('、') : '目前尚無訪客留名';
         });
 
+        // 核心排序過濾邏輯（實作逆排序，最新歌曲永遠顯示在最上面）
         const filteredSongs = computed(() => {
-          let list = songs.value;
+          let list = [...songs.value]; // 複製陣列避免污染原始資料
+          
           if (showMyPlaylistOnly.value && userName.value) {
             list = list.filter(song => song.owners && song.owners.includes(userName.value));
           }
+
           const query = searchQuery.value.trim().toLowerCase();
           if (query) {
             list = list.filter(song => 
@@ -431,19 +453,24 @@
               (song.owners && song.owners.some(owner => owner.toLowerCase().includes(query)))
             );
           }
-          return list;
+          return list.reverse(); // 執行反轉，讓後端新推入的歌曲在最前列
         });
 
+        // 進度百分比
         const progressPercent = computed(() => {
           return duration.value ? (currentTime.value / duration.value) * 100 : 0;
         });
         
+        // 初始化音訊引擎
         const initAudioEngine = async() => {
           if (isEngineInitialized) return;
           await Tone.start();
+
           vocalAudio = new Audio();
           instAudio = new Audio();
+
           tonePitchShiftNode = new Tone.PitchShift(pitchShift.value).toDestination();
+
           Tone.connect(Tone.context.createMediaElementSource(vocalAudio), tonePitchShiftNode);
           Tone.connect(Tone.context.createMediaElementSource(instAudio), tonePitchShiftNode);
 					
@@ -453,10 +480,17 @@
               instAudio.currentTime = vocalAudio.currentTime;
             }
           });
-          vocalAudio.addEventListener('durationchange', () => duration.value = vocalAudio.duration);
-          vocalAudio.addEventListener('ended', playNextSongAuto);
+
+          vocalAudio.addEventListener('durationchange', () => {
+            duration.value = vocalAudio.duration;
+          });
+
+          vocalAudio.addEventListener('ended', () => {
+            playNextSongAuto();
+          });
+
           vocalAudio.addEventListener('error', () => {
-            triggerToast("❌ 無法讀取歌曲，請確認雲端硬碟檔案是否存在。");
+            triggerToast("❌ 無法讀取歌曲，請確認雲端硬碟檔案是否存在，且檔名配對正確。");
             isPlaying.value = false;
           });
 
@@ -476,105 +510,161 @@
           }
         };
 
-        const toggleMute = () => { isMuted.value = !isMuted.value; updateVolume(); };
-        const updateFader = () => updateVolume();
+        const toggleMute = () => {
+          isMuted.value = !isMuted.value;
+          updateVolume();
+        };
+
+        const updateFader = () => {
+          updateVolume();
+        };
+
         const adjustPitch = async(amount) => {
           await initAudioEngine();
           pitchShift.value = Math.max(-6, Math.min(6, pitchShift.value + amount));
-          if (tonePitchShiftNode) tonePitchShiftNode.pitch = pitchShift.value;
+          if (tonePitchShiftNode) {
+            tonePitchShiftNode.pitch = pitchShift.value;
+          }
         };
-        const resetPitch = () => { pitchShift.value = 0; if (tonePitchShiftNode) tonePitchShiftNode.pitch = 0; };
+
+        const resetPitch = () => {
+          pitchShift.value = 0;
+          if (tonePitchShiftNode) {
+            tonePitchShiftNode.pitch = 0;
+          }
+        };
 				
-				const base64ToBlob = (base64, mimeType) => {
-					const binary = atob(base64);
-					const bytes = new Uint8Array(binary.length);
-					for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-					return new Blob([bytes], { type: mimeType });
-				};
+        const base64ToBlob = (base64, mimeType) => {
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          return new Blob([bytes], { type: mimeType });
+        };
 
+        // 精確點播歌曲（音軌完全覆蓋清除，永不殘留背景聲音）
         const playSongById = async (id) => {
-					await initAudioEngine();
-					const idx = filteredSongs.value.findIndex(s => s.id === id);
-					if (idx === -1) return;
-					currentSongIndex.value = idx;
-					isPlaying.value = false;
-          isEditingLyric.value = false; // 切換歌曲時關閉編輯狀態
+          await initAudioEngine();
 
-					const song = filteredSongs.value[idx];
-					if (!song.vocalDriveId) return triggerToast("⚠️ 找不到該歌曲的雲端硬碟 ID");
+          // 強制終止並清理上一首歌曲的音軌
+          if (vocalAudio) vocalAudio.pause();
+          if (instAudio) instAudio.pause();
+          isPlaying.value = false;
+          isEditingLyric.value = false; 
 
-					try {
-						triggerToast("⏳ 載入中，請稍候...");
-						const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${song.vocalDriveId}`);
-						vocalAudio.src = URL.createObjectURL(base64ToBlob(await vRes.text(), 'audio/mpeg'));
-						vocalAudio.load();
+          currentSongId.value = id;
+          const song = songs.value.find(s => s.id === id);
+          if (!song) return;
 
-						if (song.instDriveId) {
-							const iRes = await fetch(`${gasApiUrl.value}?action=stream&id=${song.instDriveId}`);
-							instAudio.src = URL.createObjectURL(base64ToBlob(await iRes.text(), 'audio/mpeg'));
-							instAudio.load();
-							faderValue.value = 0;
-						} else instAudio.src = '';
+          const vocalId = song.vocalDriveId || song.fileId || song.driveId;
+          if (!vocalId) {
+            triggerToast("⚠️ 找不到該歌曲的雲端硬碟 ID");
+            return;
+          }
 
-						await vocalAudio.play();
-						if (song.instDriveId) await instAudio.play();
-						isPlaying.value = true;
-						showSongList.value = false; 
-					} catch(e) {
-						triggerToast("❌ 載入失敗：" + e.message);
-						isPlaying.value = false;
-					}
-					updateVolume();
-				};
+          try {
+            triggerToast("⏳ 載入音檔中，請稍候...");
+            
+            // 讀取主唱音軌
+            const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
+            vocalAudio.src = URL.createObjectURL(base64ToBlob(await vRes.text(), 'audio/mpeg'));
+            vocalAudio.load();
 
+            // 讀取伴奏音軌
+            if (song.instDriveId) {
+              const iRes = await fetch(`${gasApiUrl.value}?action=stream&id=${song.instDriveId}`);
+              instAudio.src = URL.createObjectURL(base64ToBlob(await iRes.text(), 'audio/mpeg'));
+              instAudio.load();
+              faderValue.value = 0;
+            } else {
+              instAudio.src = '';
+            }
+
+            updateVolume();
+            await vocalAudio.play();
+            if (song.instDriveId) await instAudio.play();
+            isPlaying.value = true;
+            showSongList.value = false; 
+
+          } catch(e) {
+            triggerToast("❌ 載入失敗：" + e.message);
+            isPlaying.value = false;
+          }
+        };
+
+        // 播放與暫停切換
         const togglePlay = async () => {
           await initAudioEngine();
-          if (currentSongIndex.value === -1 && filteredSongs.value.length > 0) return await playSongById(filteredSongs.value[0].id);
+          if (!currentSongId.value && filteredSongs.value.length > 0) {
+            await playSongById(filteredSongs.value[0].id);
+            return;
+          }
+
           if (isPlaying.value) {
             vocalAudio.pause();
             if (hasCompanion.value) instAudio.pause();
             isPlaying.value = false;
           } else {
             await vocalAudio.play();
-            if (hasCompanion.value) await instAudio.play();
+            if (hasCompanion.value && instAudio.src) await instAudio.play();
             isPlaying.value = true;
           }
         };
 
+        // 依據畫面上看到的清單排序切換歌曲
         const playPrev = () => {
           if (filteredSongs.value.length === 0) return;
-          let prevIdx = currentSongIndex.value - 1;
+          let currentIdx = filteredSongs.value.findIndex(s => s.id === currentSongId.value);
+          let prevIdx = currentIdx - 1;
           if (prevIdx < 0) prevIdx = filteredSongs.value.length - 1;
           playSongById(filteredSongs.value[prevIdx].id);
         };
 
         const playNext = () => {
           if (filteredSongs.value.length === 0) return;
-          let nextIdx = currentSongIndex.value + 1;
-          if (nextIdx >= filteredSongs.value.length) nextIdx = 0;
+          let currentIdx = filteredSongs.value.findIndex(s => s.id === currentSongId.value);
+          let nextIdx = currentIdx + 1;
+          if (nextIdx >= filteredSongs.value.length || currentIdx === -1) nextIdx = 0;
           playSongById(filteredSongs.value[nextIdx].id);
         };
 
         const playNextSongAuto = () => {
           if (filteredSongs.value.length === 0) return;
+          
           if (playModel.value === 'anchor') {
-            vocalAudio.currentTime = 0; vocalAudio.play();
-            if (hasCompanion.value) { instAudio.currentTime = 0; instAudio.play(); }
+            vocalAudio.currentTime = 0;
+            vocalAudio.play();
+            if (hasCompanion.value) {
+              instAudio.currentTime = 0;
+              instAudio.play();
+            }
           } else if (playModel.value === 'random') {
-            playSongById(filteredSongs.value[Math.floor(Math.random() * filteredSongs.value.length)].id);
-          } else playNext();
+            const randomIdx = Math.floor(Math.random() * filteredSongs.value.length);
+            playSongById(filteredSongs.value[randomIdx].id);
+          } else {
+            playNext();
+          }
         };
 
         const seekAudio = (e) => {
           if (!isEngineInitialized || !duration.value) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const targetTime = (e.clientX - rect.left) / rect.width * duration.value;
+
           vocalAudio.currentTime = targetTime;
-          if (hasCompanion.value) instAudio.currentTime = targetTime;
+          if (hasCompanion.value) {
+            instAudio.currentTime = targetTime;
+          }
         };
 
+        // 讀取雲端資料庫
         const fetchDatabase = async () => {
-          if (!gasApiUrl.value || gasApiUrl.value === DEFAULT_GAS_API_URL) return showSettingsModal.value = true;
+          if (!gasApiUrl.value || gasApiUrl.value === DEFAULT_GAS_API_URL) {
+            showSettingsModal.value = true;
+            return;
+          }
+
           try {
             const res = await fetch(`${gasApiUrl.value}?action=getDb`);
             const json = await res.json();
@@ -582,38 +672,57 @@
               songs.value = json.data.songs || [];
               visitors.value = json.data.visitors || {};
               if (userName.value) registerVisitor();
-            } else triggerToast("讀取庫失敗: " + json.error);
+            } else {
+              triggerToast("讀取資料庫失敗: " + json.error);
+            }
           } catch (e) {
-            triggerToast("API 連線失敗！");
+            triggerToast("與雲端 API 連線失敗，請檢查設定！");
           }
         };
 
         const registerVisitor = async () => {
           if (!userName.value || !gasApiUrl.value) return;
           try {
-            const res = await fetch(gasApiUrl.value, { method: 'POST', body: JSON.stringify({ action: 'addVisitor', userName: userName.value, today: todayStr }) });
+            const res = await fetch(gasApiUrl.value, {
+              method: 'POST',
+              body: JSON.stringify({ action: 'addVisitor', userName: userName.value, today: todayStr })
+            });
             const json = await res.json();
-            if (json.success) visitors.value[todayStr] = json.visitors;
+            if (json.success) {
+              visitors.value[todayStr] = json.visitors;
+            }
           } catch (e) {}
         };
 
         const toggleMyFavorite = async (song) => {
-          if (!userName.value) return triggerToast("請先輸入您的代號以開始收藏！") || (showSettingsModal.value = true);
+          if (!userName.value) {
+            showSettingsModal.value = true;
+            triggerToast("請先輸入您的代號以開始收藏！");
+            return;
+          }
+
           const type = isMyFavorite(song) ? 'remove' : 'add';
           try {
-            const res = await fetch(gasApiUrl.value, { method: 'POST', body: JSON.stringify({ action: 'toggleOwner', songId: song.id, userName: userName.value, type }) });
+            const res = await fetch(gasApiUrl.value, {
+              method: 'POST',
+              body: JSON.stringify({ action: 'toggleOwner', songId: song.id, userName: userName.value, type: type })
+            });
             const json = await res.json();
             if (json.success) {
-              const idx = songs.value.findIndex(s => s.id === song.id);
-              if (idx !== -1) songs.value[idx] = json.song;
-              triggerToast(type === 'add' ? "已加入您的專屬歌單！" : "已從歌單移出。");
-            } else triggerToast("操作失敗: " + json.error);
-          } catch (e) { triggerToast("連線失敗。"); }
+              const index = songs.value.findIndex(s => s.id === song.id);
+              if (index !== -1) songs.value[index] = json.song;
+              triggerToast(type === 'add' ? "已成功加入您的專屬歌單！" : "已從您的歌單移出。");
+            } else {
+              triggerToast("操作失敗: " + json.error);
+            }
+          } catch (e) {
+            triggerToast("與雲端連線失敗。");
+          }
         };
 
         const isMyFavorite = (song) => song.owners && song.owners.includes(userName.value);
 
-        // === 新增：啟動、儲存、取消歌詞編輯函式 ===
+        // 歌詞編輯與儲存控制
         const startEditLyric = () => {
           if (!currentSong.value) return;
           editableLyric.value = currentSong.value.lyric || '';
@@ -639,10 +748,8 @@
             const json = await res.json();
             if (json.success) {
               const idx = songs.value.findIndex(s => s.id === currentSong.value.id);
-              if (idx !== -1) {
-                songs.value[idx] = json.song;
-              }
-              triggerToast("歌詞已成功更新並寫回 Google Drive 雲端！");
+              if (idx !== -1) songs.value[idx] = json.song;
+              triggerToast("歌詞已成功更新並寫回雲端硬碟！");
               isEditingLyric.value = false;
             } else {
               triggerToast("更新失敗: " + json.error);
@@ -654,12 +761,80 @@
           }
         };
 
-        const submitOrderSong = async () => {
-          /* ... 原有点歌邏輯不變 ... */
+        // 開啟建檔視窗 (自動帶入預設點歌者)
+        const openUploadModal = () => {
+          uploadForm.value = { title: '', singer: '', lyric: '', fileName: '', owners: userName.value };
+          showUploadModal.value = true;
         };
 
+        // 提交點歌信件
+        const submitOrderSong = async () => {
+          const { songName, singerName } = orderForm.value;
+          if (!songName.trim() || !singerName.trim()) {
+            triggerToast("歌名與原唱欄位皆為必填！");
+            return;
+          }
+          if (!userName.value) {
+            showSettingsModal.value = true;
+            triggerToast("請先完成留名，以便版主知道是您點的歌喔！");
+            return;
+          }
+
+          loading.value = true;
+          try {
+            const res = await fetch(gasApiUrl.value, {
+              method: 'POST',
+              body: JSON.stringify({ action: 'orderSong', songName, singerName, userName: userName.value })
+            });
+            const json = await res.json();
+            if (json.success) {
+              triggerToast("已成功發送點歌願望！郵件寄送完成。");
+              showOrderModal.value = false;
+              orderForm.value = { songName: '', singerName: '' };
+            } else {
+              triggerToast("點歌失敗: " + json.error);
+            }
+          } catch (e) {
+            triggerToast("點歌連線出錯，請確認網路設定。");
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        // 提交硬碟檔名配對建檔 (支援多人點歌與防重檢查)
         const submitUploadSong = async () => {
-          /* ... 原有上傳邏輯不變 ... */
+          const { title, singer, fileName, lyric, owners } = uploadForm.value;
+          if (!title.trim() || !singer.trim() || !fileName.trim() || !owners.trim()) {
+            triggerToast("所有欄位皆為必填！");
+            return;
+          }
+
+          loading.value = true;
+          try {
+            const res = await fetch(gasApiUrl.value, {
+              method: 'POST',
+              body: JSON.stringify({
+                action: 'uploadSongFromUrl', // 沿用後端路由名稱
+                title: title,
+                singer: singer,
+                owners: owners,
+                lyric: lyric,
+                fileName: fileName
+              })
+            });
+            const json = await res.json();
+            if (json.success) {
+              triggerToast(`建檔成功！歌曲「${title}」已加入歌單。`);
+              songs.value.push(json.song); // 寫入底端，配合前端逆排序會呈現在最頂端
+              showUploadModal.value = false;
+            } else {
+              triggerToast("建檔失敗: " + json.error);
+            }
+          } catch (e) {
+            triggerToast("連線出錯，請檢查雲端檔案狀態。");
+          } finally {
+            loading.value = false;
+          }
         };
 
         const saveSettings = () => {
@@ -669,7 +844,7 @@
           fetchDatabase();
         };
 
-        const toggleShow = () => showSongList.value = !showSongList.value;
+        const toggleShow = () => { showSongList.value = !showSongList.value; };
         const formatTime = (time) => {
           if (isNaN(time)) return '00:00';
           return `${Math.floor(time / 60).toString().padStart(2, '0')}:${Math.floor(time % 60).toString().padStart(2, '0')}`;
@@ -677,19 +852,30 @@
 
         onMounted(() => {
           fetchDatabase();
-          if (!userName.value) setTimeout(() => showSettingsModal.value = true, 800);
+          if (!userName.value) {
+            setTimeout(() => { showSettingsModal.value = true; }, 800);
+          }
         });
 
         return {
           gasApiUrl, userName, visitors, visitorListString, loading, showToast, toastMessage, triggerToast,
-          showSongList, searchQuery, showMyPlaylistOnly, playModel, filteredSongs, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex,
+          showSongList, searchQuery, showMyPlaylistOnly, playModel, filteredSongs, currentSongId, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex,
           isPlaying, currentTime, duration, volume, isMuted, progressPercent, faderValue, pitchShift, hasCompanion,
           showOrderModal, showUploadModal, showInfoModal, showSettingsModal, orderForm, uploadForm,
-          isEditingLyric, editableLyric, loadingLyric, startEditLyric, cancelEditLyric, saveLyric,
+          isEditingLyric, editableLyric, loadingLyric, startEditLyric, cancelEditLyric, saveLyric, openUploadModal,
           toggleShow, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateFader, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, formatTime
         };
       }
     }).mount('#app');
+
+    // PWA Service Worker 註冊
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker 註冊成功:', reg.scope))
+          .catch(err => console.log('Service Worker 註冊失敗:', err));
+      });
+    }
   </script>
 </body>
 </html>
