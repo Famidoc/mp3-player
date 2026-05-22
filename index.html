@@ -445,18 +445,30 @@
 
         // 🌟 採用最穩定的 Docs UC 直連端點
         const currentSrcVocal = computed(() => {
-          if (!currentSong.value || !currentSong.value.vocalDriveId) return '';
-          const vId = currentSong.value.vocalDriveId.trim();
-          if (vId.startsWith('http://') || vId.startsWith('https://')) return vId;
-          return `https://docs.google.com/uc?export=view&id=${vId}`;
-        });
+				 if (!currentSong.value || !currentSong.value.vocalDriveId) return '';
+
+				 const vId = currentSong.value.vocalDriveId.trim();
+
+				 if (vId.startsWith('http://') || vId.startsWith('https://')) {
+					 return vId;
+				 }
+
+				 return `https://drive.google.com/uc?export=download&id=${vId}`;
+				});
+
 
         const currentSrcInst = computed(() => {
-          if (!currentSong.value || !currentSong.value.instDriveId) return '';
-          const iId = currentSong.value.instDriveId.trim();
-          if (iId.startsWith('http://') || iId.startsWith('https://')) return iId;
-          return `https://docs.google.com/uc?export=view&id=${iId}`;
-        });
+				 if (!currentSong.value || !currentSong.value.instDriveId) return '';
+
+				 const iId = currentSong.value.instDriveId.trim();
+
+				 if (iId.startsWith('http://') || iId.startsWith('https://')) {
+					 return iId;
+				 }
+
+				 return `https://drive.google.com/uc?export=download&id=${iId}`;
+				});
+
 
         // 偵測目前歌曲是否擁有伴奏檔
         const hasCompanion = computed(() => {
@@ -552,11 +564,11 @@
            🌟 核心音訊處理引擎 (完美複製舊版 KTV 成功架構)
            ========================================================================= */
         
-        const initAudioEngine = () => {
+        const initAudioEngine = async() => {
           if (isEngineInitialized) return;
           
           // 啟用瀏覽器 Web Audio 上下文
-          Tone.start();
+          await Tone.start();
 
           // 1. 建立原生 HTML5 Audio 物件 (絕對不要寫任何 crossOrigin = "anonymous" 屬性)
           vocalAudio = new Audio();
@@ -574,8 +586,8 @@
           // 4. 🌟 終極修復：使用 Tone.connect 連接原生 AudioNode 與 Tone.js PitchShift 節點
           Tone.connect(toneVocalSource, tonePitchShiftNode);
           Tone.connect(toneInstSource, tonePitchShiftNode);
-
-          // 5. 監聽時序與同步
+					
+          // 5. 監聽時序與同步`
           vocalAudio.addEventListener('timeupdate', () => {
             currentTime.value = vocalAudio.currentTime;
             if (hasCompanion.value && Math.abs(vocalAudio.currentTime - instAudio.currentTime) > 0.15) {
@@ -686,7 +698,7 @@
         };
 
         const togglePlay = async () => {
-          initAudioEngine();
+          await initAudioEngine();
           if (currentSongIndex.value === -1 && filteredSongs.value.length > 0) {
             await playSongById(filteredSongs.value[0].id);
             return;
