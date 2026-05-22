@@ -28,6 +28,8 @@ self.addEventListener('install', event => {
 
 // 2. 啟用階段：清理舊版本的快取
 self.addEventListener('activate', event => {
+	const url = new URL(event.request.url);
+  if (url.origin !== location.origin) return;
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
