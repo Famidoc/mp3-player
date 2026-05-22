@@ -453,7 +453,7 @@
 					 return vId;
 				 }
 
-				 return `https://drive.google.com/uc?export=download&id=${vId}`;
+				 return `https://drive.google.com/uc?export=download&id=${vId}&confirm=t`;
 				});
 
 
@@ -466,7 +466,7 @@
 					 return iId;
 				 }
 
-				 return `https://drive.google.com/uc?export=download&id=${iId}`;
+				 return `https://drive.google.com/uc?export=download&id=${iId}&confirm=t`;
 				});
 
 
@@ -637,8 +637,8 @@
         };
 
         // 即時調整升降 Key
-        const adjustPitch = (amount) => {
-          initAudioEngine();
+        const adjustPitch = async(amount) => {
+          await initAudioEngine();
           pitchShift.value = Math.max(-6, Math.min(6, pitchShift.value + amount));
           if (tonePitchShiftNode) {
             tonePitchShiftNode.pitch = pitchShift.value;
@@ -651,51 +651,68 @@
             tonePitchShiftNode.pitch = 0;
           }
         };
+				
+				// Base64 轉 Blob 工具
+				const base64ToBlob = (base64, mimeType) => {
+					const binary = atob(base64);
+					const bytes = new Uint8Array(binary.length);
+					for (let i = 0; i < binary.length; i++) {
+						bytes[i] = binary.charCodeAt(i);
+					}
+					return new Blob([bytes], { type: mimeType });
+				};
 
         // 點播歌曲
         const playSongById = async (id) => {
-          // 💡 點擊時第一步執行 initAudioEngine()，由於已經換成正確的原生接口，這裡絕對不會再報錯卡死
-          initAudioEngine();
-          
-          const idx = filteredSongs.value.findIndex(s => s.id === id);
-          if (idx === -1) return;
+					await initAudioEngine();
 
-          currentSongIndex.value = idx;
-          isPlaying.value = false;
+					const idx = filteredSongs.value.findIndex(s => s.id === id);
+					if (idx === -1) return;
+					currentSongIndex.value = idx;
+					isPlaying.value = false;
 
-          // 獲取去空格標準格式直連 URL
-          const vocalSrc = currentSrcVocal.value;
-          const instSrc = currentSrcInst.value;
+					const song = filteredSongs.value[idx];
+					if (!song.vocalDriveId) {
+						triggerToast("⚠️ 找不到該歌曲的雲端硬碟 ID");
+						return;
+					}
 
-          if (!vocalSrc) {
-            triggerToast("⚠️ 找不到該歌曲的雲端硬碟 ID，請核對檔名並重新配對！");
-            return;
-          }
+					try {
+						triggerToast("⏳ 載入中，請稍候...");
 
-          // 直接替換 Src 加載
-          vocalAudio.src = vocalSrc;
-          vocalAudio.load();
+						// 主唱音軌
+						const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${song.vocalDriveId}`);
+						const vBase64 = await vRes.text();
+						const vBlob = base64ToBlob(vBase64, 'audio/mpeg');
+						const vUrl = URL.createObjectURL(vBlob);
+						vocalAudio.src = vUrl;
+						vocalAudio.load();
 
-          if (instSrc) {
-            instAudio.src = instSrc;
-            instAudio.load();
-            faderValue.value = 0; // 重置原唱優先
-          } else {
-            instAudio.src = '';
-          }
+						// 伴奏音軌（如果有）
+						if (song.instDriveId) {
+							const iRes = await fetch(`${gasApiUrl.value}?action=stream&id=${song.instDriveId}`);
+							const iBase64 = await iRes.text();
+							const iBlob = base64ToBlob(iBase64, 'audio/mpeg');
+							const iUrl = URL.createObjectURL(iBlob);
+							instAudio.src = iUrl;
+							instAudio.load();
+							faderValue.value = 0;
+						} else {
+							instAudio.src = '';
+						}
 
-          try {
-            await vocalAudio.play();
-            if (instSrc) {
-              await instAudio.play();
-            }
-            isPlaying.value = true;
-          } catch (e) {
-            console.warn("自動播放暫時被阻擋，已等待手動觸發播放:", e);
-          }
-          
-          updateVolume();
-        };
+						await vocalAudio.play();
+						if (song.instDriveId) await instAudio.play();
+						isPlaying.value = true;
+						showSongList.value = false; // 播放後切換到歌詞頁
+
+					} catch(e) {
+						triggerToast("❌ 載入失敗：" + e.message);
+						isPlaying.value = false;
+					}
+
+					updateVolume();
+				};
 
         const togglePlay = async () => {
           await initAudioEngine();
