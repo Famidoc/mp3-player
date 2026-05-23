@@ -56,19 +56,21 @@
       <!-- ================= 歌詞與播放狀態頁面 ================= -->
       <section v-show="!showSongList" class="flex-1 flex flex-col overflow-hidden p-3">
         <div class="bg-slate-950/50 rounded-2xl p-3 border border-slate-800/60 mb-2 shrink-0">
-          <div class="flex justify-between items-start gap-2">
-            <div class="flex-1 min-w-0">
-              <h2 class="text-2xl font-bold text-yellow-400 truncate">{{ currentSong ? currentSong.title : '未播放歌曲' }}</h2>
-              <p class="text-base text-slate-400 mt-1 truncate"><i class="fa fa-microphone mr-1"></i>{{ currentSong ? currentSong.singer : '未知歌手' }}</p>
-            </div>
-            
-            <div class="text-right shrink-0 flex items-center gap-1">
-              <span class="text-sm bg-cyan-950/80 text-cyan-400 border border-cyan-800 px-3 py-1 rounded-full inline-block font-semibold">
-                點歌: {{ currentSong && currentSong.owners && currentSong.owners.length ? currentSong.owners.join(', ') : '無' }}
-              </span>
-              <button v-if="currentSong" @click="openEditOwnersModal" class="p-1 text-slate-400 hover:text-cyan-400 transition" title="編輯點歌者">
-                <i class="fa fa-edit"></i>
-              </button>
+          
+          <!-- [黃框版面優化] 歌名獨立一行，資訊併入第二行 -->
+          <div class="flex flex-col gap-1 mb-2">
+            <h2 class="text-2xl font-bold text-yellow-400 truncate w-full">{{ currentSong ? currentSong.title : '未播放歌曲' }}</h2>
+            <div class="flex justify-between items-center w-full">
+              <p class="text-base text-slate-400 truncate flex-1"><i class="fa fa-microphone mr-1"></i>{{ currentSong ? currentSong.singer : '未知歌手' }}</p>
+              
+              <div class="text-right shrink-0 flex items-center gap-1">
+                <span class="text-sm bg-cyan-950/80 text-cyan-400 border border-cyan-800 px-3 py-1 rounded-full inline-block font-semibold truncate max-w-[140px] sm:max-w-[180px]">
+                  點歌: {{ currentSong && currentSong.owners && currentSong.owners.length ? currentSong.owners.join(', ') : '無' }}
+                </span>
+                <button v-if="isAdmin && currentSong" @click="openEditSongModal" class="p-1 text-slate-400 hover:text-cyan-400 transition" title="編輯歌曲資訊">
+                  <i class="fa fa-edit"></i>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -118,9 +120,16 @@
 					</div>
 
 					<template v-else>
-						<!-- 歌詞工具列：包含切換模式與編輯按鈕 -->
-						<div v-if="currentSong" class="absolute top-2 right-2 flex gap-2 z-10">
-							<button v-if="parsedLyrics.length > 0" @click="isDynamicLyricMode = !isDynamicLyricMode" class="w-8 h-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg backdrop-blur-sm transition text-sm shadow cursor-pointer" :title="isDynamicLyricMode ? '切換為純文字' : '切換為動態歌詞'">
+						<div v-if="currentSong" class="absolute top-2 right-2 flex items-center z-10">
+              <!-- 歌詞時間微調按鈕與儲存 -->
+              <div v-if="isDynamicLyricMode && parsedLyrics.length > 0" class="flex items-center gap-1 mr-2 bg-slate-800/90 rounded-lg p-1 backdrop-blur-sm shadow">
+                <button @click="lyricOffset -= 0.5" class="px-2 text-xs text-slate-300 hover:text-cyan-400 transition" title="歌詞提早 0.5 秒">-0.5s</button>
+                <span class="text-[11px] text-yellow-400 font-mono w-7 text-center">{{ lyricOffset > 0 ? '+' : '' }}{{ lyricOffset }}</span>
+                <button @click="lyricOffset += 0.5" class="px-2 text-xs text-slate-300 hover:text-cyan-400 transition" title="歌詞延後 0.5 秒">+0.5s</button>
+                <button v-if="isAdmin" @click="saveOffset" class="px-2 text-xs text-yellow-500 hover:text-white border-l border-slate-700 ml-1 pl-2 transition" title="永久記憶此微調值"><i class="fa fa-save"></i></button>
+              </div>
+
+							<button v-if="parsedLyrics.length > 0" @click="isDynamicLyricMode = !isDynamicLyricMode" class="w-8 h-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg backdrop-blur-sm transition text-sm shadow cursor-pointer mr-1" :title="isDynamicLyricMode ? '切換為純文字' : '切換為動態歌詞'">
 								<i class="fa" :class="isDynamicLyricMode ? 'fa-align-left' : 'fa-play-circle'"></i>
 							</button>
 							<button @click="startEditLyric" class="w-8 h-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg backdrop-blur-sm transition text-sm shadow cursor-pointer" title="編輯歌詞">
@@ -128,22 +137,27 @@
 							</button>
 						</div>
 
-						<div v-if="parsedLyrics.length > 0 && isDynamicLyricMode" class="py-40 px-2">
-							<p v-for="(line, index) in parsedLyrics" 
-								 :key="index" 
-								 :id="'lrc-line-' + index"
-								 class="transition-all duration-300 py-1.5 origin-left leading-relaxed"
-								 :class="currentLrcIndex === index ? 'text-xl font-bold text-yellow-400 opacity-100' : 'text-base font-medium text-slate-300 opacity-60'">
-								{{ line.text }}
-							</p>
+						<!-- 修改後的歌詞顯示區域 -->
+						<div v-if="parsedLyrics.length > 0 && isDynamicLyricMode" class="flex flex-col w-full h-full">
+								<!-- 移除 py-32，改用 flex 讓內容自然延伸，若需要垂直置中可加 justify-center -->
+								<div class="flex-1 flex flex-col justify-start px-2 py-4">
+										<p v-for="(line, index) in parsedLyrics" 
+												 :key="index" 
+												 :id="'lrc-line-' + index"
+												 class="transition-all duration-300 py-1.5 origin-left leading-relaxed text-center"
+												 :class="currentLrcIndex === index ? 'text-xl font-bold text-yellow-400 opacity-100' : 'text-base font-medium text-slate-300 opacity-60'">
+												{{ line.text }}
+										</p>
+								</div>
 						</div>
-						
-						<div v-else class="h-full flex flex-col items-start justify-center px-2 space-y-3 pt-10">
-							<div class="flex items-center gap-2 text-slate-300 opacity-80">
-								<i class="fa fa-file-audio text-xl"></i>
-								<span class="text-sm font-bold">{{ parsedLyrics.length > 0 ? '純文字歌詞模式' : '無動態歌詞資料' }}</span>
-							</div>
-							<pre class="text-sm text-left text-slate-200 max-w-full overflow-x-auto whitespace-pre-wrap p-4 border border-slate-700 bg-slate-900 rounded-xl w-full font-mono">{{ currentLyricRaw }}</pre>
+
+						<!-- 純文字模式也移除 pt-8，改為更靈活的間距 -->
+						<div v-else class="flex flex-col items-start px-4 py-4 space-y-3">
+								<div class="flex items-center gap-2 text-slate-300 opacity-80">
+										<i class="fa fa-file-audio text-xl"></i>
+										<span class="text-sm font-bold">{{ parsedLyrics.length > 0 ? '純文字歌詞模式' : '無動態歌詞資料' }}</span>
+								</div>
+								<pre class="text-sm text-left text-slate-200 w-full overflow-x-auto whitespace-pre-wrap p-4 border border-slate-700 bg-slate-900 rounded-xl font-mono">{{ currentLyricRaw }}</pre>
 						</div>
 					</template>
 				</div>
@@ -167,7 +181,6 @@
             </button>
           </div>
 
-          <!-- 常駐顯示的選定歌曲與總數狀態列 -->
           <div class="flex justify-between items-center bg-slate-900/50 border border-slate-800/50 rounded-lg px-3 py-2 mt-1">
             <span class="text-xs font-semibold" :class="checkedSongs.length > 0 ? 'text-indigo-300' : 'text-slate-400'">
               <i class="fa mr-1" :class="checkedSongs.length > 0 ? 'fa-check-square-o' : 'fa-list'"></i>
@@ -280,16 +293,28 @@
       </div>
     </div>
 
-    <div v-if="showEditOwnersModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <!-- 升級版：編輯歌曲與刪除 Modal -->
+    <div v-if="showEditSongModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
-        <h3 class="text-xl font-bold text-cyan-400 flex items-center gap-2"><i class="fa fa-users"></i> 編輯點歌者名單</h3>
-        <p class="text-sm text-slate-400">為歌曲「<span class="text-yellow-400 font-bold">{{ editOwnersForm.songTitle }}</span>」修改點歌者，多人請以逗號分隔。</p>
-        <div>
-          <input type="text" v-model="editOwnersForm.ownersStr" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base text-slate-100 focus:border-cyan-500">
+        <h3 class="text-xl font-bold text-cyan-400 flex items-center gap-2"><i class="fa fa-edit"></i> 編輯歌曲資訊</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-sm text-slate-400 block mb-1 font-bold">歌名</label>
+            <input type="text" v-model="editSongForm.title" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-base text-slate-100 focus:border-cyan-500">
+          </div>
+          <div>
+            <label class="text-sm text-slate-400 block mb-1 font-bold">歌手</label>
+            <input type="text" v-model="editSongForm.singer" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-base text-slate-100 focus:border-cyan-500">
+          </div>
+          <div>
+            <label class="text-sm text-slate-400 block mb-1 font-bold">點歌者 (多人請用逗號分隔)</label>
+            <input type="text" v-model="editSongForm.ownersStr" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-base text-slate-100 focus:border-cyan-500">
+          </div>
         </div>
-        <div class="flex gap-3 pt-3">
-          <button @click="showEditOwnersModal = false" class="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-base transition">取消</button>
-          <button @click="submitEditOwners" :disabled="loading" class="flex-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 py-3 rounded-xl text-base font-bold text-white transition">{{ loading ? '儲存中...' : '儲存變更' }}</button>
+        <div class="flex gap-2 pt-3">
+          <button @click="showEditSongModal = false" class="flex-1 bg-slate-800 hover:bg-slate-700 py-2.5 rounded-xl text-sm transition">取消</button>
+          <button @click="deleteSong" :disabled="loading" class="flex-1 bg-red-900/80 hover:bg-red-800 text-red-200 disabled:opacity-50 py-2.5 rounded-xl text-sm font-bold transition">刪除歌曲</button>
+          <button @click="submitEditSong" :disabled="loading" class="flex-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 py-2.5 rounded-xl text-sm font-bold text-white transition">{{ loading ? '儲存中...' : '儲存' }}</button>
         </div>
       </div>
     </div>
@@ -396,16 +421,21 @@
         const showUploadModal = ref(false);
         const showInfoModal = ref(false);
         const showSettingsModal = ref(false);
-        const showEditOwnersModal = ref(false);
+        const showEditSongModal = ref(false);
 
         const orderForm = ref({ songName: '', singerName: '' });
         const uploadForm = ref({ title: '', singer: '', lyric: '', fileName: '', owners: '' });
-        const editOwnersForm = ref({ songId: '', songTitle: '', ownersStr: '' });
+        const editSongForm = ref({ songId: '', title: '', singer: '', ownersStr: '' });
 
         const isEditingLyric = ref(false);
         const editableLyric = ref('');
         const loadingLyric = ref(false);
-        const isDynamicLyricMode = ref(true); // 控制動態/靜態歌詞切換
+        const isDynamicLyricMode = ref(true); 
+        
+        const lyricOffset = ref(0); 
+
+        const audioCache = {}; 
+        let playSessionCounter = 0; 
 
         const currentSongId = ref(''); 
         const isPlaying = ref(false);
@@ -416,7 +446,6 @@
         const pitchShift = ref(0);
         const faderValue = ref(0); 
 
-        // 宣告 Audio 與 Web Audio GainNodes
         let vocalAudio = null;
         let instAudio = null;
         let tonePitchShiftNode = null;
@@ -437,12 +466,21 @@
             const timeMatches = [...line.matchAll(timeReg)];
             const text = line.replace(timeReg, '').trim();
             for (let match of timeMatches) {
-              const time = parseInt(match[1]) * 60 + parseInt(match[2]) + (parseInt(match[3]) / (match[3].length === 3 ? 1000 : 100));
+              const time = parseInt(match[1]) * 60 + parseInt(match[2]) + (parseInt(match[3]) / (match[3].length === 3 ? 1000 : 100)) + lyricOffset.value;
               result.push({ time, text });
             }
           }
           result.sort((a, b) => a.time - b.time);
           return result;
+        });
+
+        // 換歌時，自動載入這首歌儲存好的 offset 記憶值
+        watch(currentSongId, () => { 
+          if(currentSong.value && currentSong.value.offset !== undefined) {
+             lyricOffset.value = currentSong.value.offset;
+          } else {
+             lyricOffset.value = 0; 
+          }
         });
 
         const currentLrcIndex = computed(() => {
@@ -479,9 +517,7 @@
         });
 
         const playlistQueue = computed(() => {
-          if (checkedSongs.value.length > 0) {
-            return filteredSongs.value.filter(song => checkedSongs.value.includes(song.id));
-          }
+          if (checkedSongs.value.length > 0) return filteredSongs.value.filter(song => checkedSongs.value.includes(song.id));
           return filteredSongs.value;
         });
 
@@ -497,17 +533,16 @@
         };
 
         watch(currentSongId, scrollToCurrentSong);
-        watch(showSongList, (newVal) => {
-          if (newVal) scrollToCurrentSong();
-        });
+        watch(showSongList, (newVal) => { if (newVal) scrollToCurrentSong(); });
 
         const initAudioEngine = async() => {
           if (isEngineInitialized) return;
           await Tone.start();
           vocalAudio = new Audio();
+          vocalAudio.crossOrigin = "anonymous";
           instAudio = new Audio();
+          instAudio.crossOrigin = "anonymous";
 
-          // 使用 Tone.Gain 掌管底層音量
           vocalGainNode = new Tone.Gain(1);
           instGainNode = new Tone.Gain(1);
           tonePitchShiftNode = new Tone.PitchShift(pitchShift.value).toDestination();
@@ -525,10 +560,27 @@
           });
           vocalAudio.addEventListener('durationchange', () => duration.value = vocalAudio.duration);
           vocalAudio.addEventListener('ended', playNextSongAuto);
+          
+          vocalAudio.addEventListener('play', () => {
+             isPlaying.value = true;
+             if (hasCompanion.value && instAudio.paused) instAudio.play();
+          });
+          vocalAudio.addEventListener('pause', () => {
+             isPlaying.value = false;
+             if (hasCompanion.value && !instAudio.paused) instAudio.pause();
+          });
+
           vocalAudio.addEventListener('error', () => {
             triggerToast("❌ 無法讀取歌曲，請確認雲端硬碟檔案是否存在。");
             isPlaying.value = false;
           });
+
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', togglePlay);
+            navigator.mediaSession.setActionHandler('pause', togglePlay);
+            navigator.mediaSession.setActionHandler('previoustrack', playPrev);
+            navigator.mediaSession.setActionHandler('nexttrack', playNext);
+          }
 
           isEngineInitialized = true;
           updateVolume();
@@ -538,7 +590,6 @@
           localStorage.setItem('mp3player_volume', volume.value.toString());
           if (!isEngineInitialized) return;
           
-          // 修改 Tone.Gain 的增益值，突破原生 audio.volume 的限制
           const currentVol = isMuted.value ? 0 : volume.value;
           if (hasCompanion.value) {
             vocalGainNode.gain.value = (1 - faderValue.value) * currentVol;
@@ -565,7 +616,37 @@
           return new Blob([bytes], { type: mimeType });
         };
 
+        const preloadNextSong = async () => {
+          if (playlistQueue.value.length < 2) return;
+          
+          let currentIdx = playlistQueue.value.findIndex(s => s.id === currentSongId.value);
+          let nextIdx = playModel.value === 'random' ? Math.floor(Math.random() * playlistQueue.value.length) : currentIdx + 1;
+              
+          if (nextIdx >= playlistQueue.value.length) nextIdx = 0;
+          const nextSong = playlistQueue.value[nextIdx];
+          
+          if (audioCache[nextSong.id]) return; 
+
+          try {
+            const vocalId = nextSong.vocalDriveId || nextSong.fileId || nextSong.driveId;
+            if (!vocalId) return;
+            const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
+            const vBase64 = await vRes.text();
+            
+            let iBase64 = null;
+            if (nextSong.instDriveId) {
+              const iRes = await fetch(`${gasApiUrl.value}?action=stream&id=${nextSong.instDriveId}`);
+              iBase64 = await iRes.text();
+            }
+            
+            audioCache[nextSong.id] = { vBase64, iBase64 };
+          } catch(e) {}
+        };
+
         const playSongById = async (id) => {
+          playSessionCounter++;
+          const currentSessionId = playSessionCounter;
+
           await initAudioEngine();
           if (vocalAudio) vocalAudio.pause();
           if (instAudio) instAudio.pause();
@@ -580,23 +661,43 @@
           if (!vocalId) return triggerToast("⚠️ 找不到該歌曲的雲端硬碟 ID");
 
           try {
-            triggerToast("⏳ 載入音檔中，請稍候...");
-            const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
-            vocalAudio.src = URL.createObjectURL(base64ToBlob(await vRes.text(), 'audio/mpeg'));
-            vocalAudio.load();
+            if (audioCache[id]) {
+               vocalAudio.src = URL.createObjectURL(base64ToBlob(audioCache[id].vBase64, 'audio/mpeg'));
+               if (song.instDriveId && audioCache[id].iBase64) {
+                 instAudio.src = URL.createObjectURL(base64ToBlob(audioCache[id].iBase64, 'audio/mpeg'));
+                 faderValue.value = 0;
+               } else instAudio.src = '';
+            } else {
+               triggerToast("⏳ 載入音檔中，請稍候...");
+               const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
+               const vText = await vRes.text();
+               if (playSessionCounter !== currentSessionId) return; 
 
-            if (song.instDriveId) {
-              const iRes = await fetch(`${gasApiUrl.value}?action=stream&id=${song.instDriveId}`);
-              instAudio.src = URL.createObjectURL(base64ToBlob(await iRes.text(), 'audio/mpeg'));
-              instAudio.load();
-              faderValue.value = 0;
-            } else instAudio.src = '';
+               vocalAudio.src = URL.createObjectURL(base64ToBlob(vText, 'audio/mpeg'));
+               if (song.instDriveId) {
+                 const iRes = await fetch(`${gasApiUrl.value}?action=stream&id=${song.instDriveId}`);
+                 const iText = await iRes.text();
+                 if (playSessionCounter !== currentSessionId) return; 
+                 instAudio.src = URL.createObjectURL(base64ToBlob(iText, 'audio/mpeg'));
+                 faderValue.value = 0;
+               } else instAudio.src = '';
+            }
+
+            vocalAudio.load();
+            if (song.instDriveId) instAudio.load();
+
+            if ('mediaSession' in navigator) {
+              navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.singer, album: 'Famidoc MP3 Player' });
+            }
 
             updateVolume();
             await vocalAudio.play();
             if (song.instDriveId) await instAudio.play();
             isPlaying.value = true;
             showSongList.value = false; 
+
+            preloadNextSong();
+            
           } catch(e) {
             triggerToast("❌ 載入失敗：" + e.message);
             isPlaying.value = false;
@@ -605,24 +706,15 @@
 
         const togglePlay = async () => {
           await initAudioEngine();
-          if (!currentSongId.value && playlistQueue.value.length > 0) {
-            return await playSongById(playlistQueue.value[0].id);
-          }
-
+          if (!currentSongId.value && playlistQueue.value.length > 0) return await playSongById(playlistQueue.value[0].id);
           if (isPlaying.value) {
             if (vocalAudio) vocalAudio.pause();
-            if (hasCompanion.value && instAudio) instAudio.pause();
-            isPlaying.value = false;
           } else {
             if (vocalAudio) await vocalAudio.play();
-            if (hasCompanion.value && instAudio.src) await instAudio.play();
-            isPlaying.value = true;
           }
         };
 
-        const togglePlayModel = () => {
-          playModel.value = playModel.value === 'random' ? 'anchor' : playModel.value === 'anchor' ? 'next' : 'random';
-        };
+        const togglePlayModel = () => { playModel.value = playModel.value === 'random' ? 'anchor' : playModel.value === 'anchor' ? 'next' : 'random'; };
 
         const playPrev = () => {
           if (playlistQueue.value.length === 0) return;
@@ -705,7 +797,7 @@
           if (!currentSong.value) return;
           loadingLyric.value = true;
           try {
-            const res = await fetch(gasApiUrl.value, { method: 'POST', body: JSON.stringify({ action: 'updateLyric', songId: currentSong.value.id, lyric: editableLyric.value }) });
+            const res = await fetch(gasApiUrl.value, { method: 'POST', body: JSON.stringify({ action: 'updateLyric', songId: currentSong.value.id, lyric: editableLyric.value, userName: userName.value }) });
             const json = await res.json();
             if (json.success) {
               const idx = songs.value.findIndex(s => s.id === currentSong.value.id);
@@ -716,39 +808,97 @@
           } catch (e) { triggerToast("儲存歌詞連線出錯。"); } finally { loadingLyric.value = false; }
         };
 
-        const openEditOwnersModal = () => {
+        // 永久記憶偏移量功能
+        const saveOffset = async () => {
           if (!currentSong.value) return;
-          editOwnersForm.value = {
-            songId: currentSong.value.id,
-            songTitle: currentSong.value.title,
-            ownersStr: (currentSong.value.owners || []).join(', ')
-          };
-          showEditOwnersModal.value = true;
+          try {
+            triggerToast("儲存微調值中...");
+            const res = await fetch(gasApiUrl.value, {
+              method: 'POST',
+              body: JSON.stringify({ action: 'updateOffset', songId: currentSong.value.id, offset: lyricOffset.value, userName: userName.value })
+            });
+            const json = await res.json();
+            if (json.success) {
+              const idx = songs.value.findIndex(s => s.id === currentSong.value.id);
+              if (idx !== -1) songs.value[idx].offset = lyricOffset.value;
+              triggerToast("微調值已永久記憶！");
+            } else triggerToast("儲存失敗: " + json.error);
+          } catch(e) {
+            triggerToast("連線失敗");
+          }
         };
 
-        const submitEditOwners = async () => {
-          if (!editOwnersForm.value.songId) return;
+        // 開啟編輯歌曲視窗 (原編輯點歌者)
+        const openEditSongModal = () => {
+          if (!currentSong.value) return;
+          editSongForm.value = {
+            songId: currentSong.value.id,
+            title: currentSong.value.title,
+            singer: currentSong.value.singer,
+            ownersStr: (currentSong.value.owners || []).join(', ')
+          };
+          showEditSongModal.value = true;
+        };
+
+        // 儲存修改的歌曲資訊
+        const submitEditSong = async () => {
+          if (!editSongForm.value.songId) return;
           loading.value = true;
           try {
             const res = await fetch(gasApiUrl.value, {
               method: 'POST',
               body: JSON.stringify({
-                action: 'updateOwners',
-                songId: editOwnersForm.value.songId,
-                ownersStr: editOwnersForm.value.ownersStr
+                action: 'updateSongInfo',
+                songId: editSongForm.value.songId,
+                title: editSongForm.value.title,
+                singer: editSongForm.value.singer,
+                ownersStr: editSongForm.value.ownersStr,
+                userName: userName.value
               })
             });
             const json = await res.json();
             if (json.success) {
-              const idx = songs.value.findIndex(s => s.id === editOwnersForm.value.songId);
+              const idx = songs.value.findIndex(s => s.id === editSongForm.value.songId);
               if (idx !== -1) songs.value[idx] = json.song;
-              triggerToast("點歌者名單更新成功！");
-              showEditOwnersModal.value = false;
+              triggerToast("歌曲資訊更新成功！");
+              showEditSongModal.value = false;
             } else {
               triggerToast("更新失敗: " + json.error);
             }
           } catch (e) {
-            triggerToast("連線出錯，無法更新名單。");
+            triggerToast("連線出錯，無法更新。");
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        // 刪除歌曲功能
+        const deleteSong = async () => {
+          if (!confirm("⚠️ 警告：確定要刪除這首歌嗎？\n這將會將 Google Drive 中的 MP3 檔案移至垃圾桶，並從歌單中永久移除！")) return;
+          loading.value = true;
+          try {
+            const res = await fetch(gasApiUrl.value, {
+              method: 'POST',
+              body: JSON.stringify({ action: 'deleteSong', songId: editSongForm.value.songId, userName: userName.value })
+            });
+            const json = await res.json();
+            if (json.success) {
+              songs.value = songs.value.filter(s => s.id !== editSongForm.value.songId);
+              triggerToast("歌曲已成功刪除並移至垃圾桶！");
+              showEditSongModal.value = false;
+              
+              if (currentSongId.value === editSongForm.value.songId) {
+                if (vocalAudio) vocalAudio.pause();
+                if (instAudio) instAudio.pause();
+                isPlaying.value = false;
+                currentSongId.value = '';
+                showSongList.value = true;
+              }
+            } else {
+              triggerToast("刪除失敗: " + json.error);
+            }
+          } catch (e) {
+            triggerToast("連線出錯，無法刪除。");
           } finally {
             loading.value = false;
           }
@@ -779,7 +929,7 @@
           try {
             const res = await fetch(gasApiUrl.value, {
               method: 'POST',
-              body: JSON.stringify({ action: 'uploadSongFromUrl', title, singer, owners, lyric, fileName })
+              body: JSON.stringify({ action: 'uploadSongFromUrl', title, singer, owners, lyric, fileName, userName: userName.value })
             });
             const json = await res.json();
             if (json.success) { triggerToast(`建檔成功！`); songs.value.push(json.song); showUploadModal.value = false; }
@@ -808,10 +958,10 @@
         return {
           gasApiUrl, userName, isAdmin, songs, visitors, visitorListString, loading, showToast, toastMessage, triggerToast,
           showSongList, searchQuery, showMyPlaylistOnly, playModel, checkedSongs, filteredSongs, playlistQueue,
-          currentSongId, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex,
+          currentSongId, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex, lyricOffset,
           isPlaying, currentTime, duration, volume, isMuted, progressPercent, faderValue, pitchShift, hasCompanion,
-          showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditOwnersModal, orderForm, uploadForm, editOwnersForm,
-          isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditOwnersModal, submitEditOwners,
+          showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, orderForm, uploadForm, editSongForm,
+          isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, submitEditSong, deleteSong, saveOffset,
           toggleShow, togglePlayModel, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateVolume, updateFader, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, formatTime
         };
       }
