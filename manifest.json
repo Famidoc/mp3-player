@@ -1,6 +1,6 @@
 {
-  "name": "KTV MP3 Player",
-  "short_name": "KTV Player",
+  "name": "MP3 Player",
+  "short_name": "MP3 Player",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#020617",
