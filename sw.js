@@ -1,5 +1,5 @@
 /**
- * KTV MP3 Player - PWA Service Worker
+ * MP3 Player - PWA Service Worker
  * 用於處理前端靜態資源的離線快取
  */
 
