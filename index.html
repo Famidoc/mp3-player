@@ -102,7 +102,9 @@
                     <button @click="lyricOffset += 0.5" class="px-2 py-1 text-xs text-slate-400 hover:text-cyan-400 transition" title="延後">+0.5s</button>
                     <button v-if="isAdmin" @click="saveOffset" class="px-2 py-1 text-xs text-yellow-600 hover:text-yellow-400 border-l border-slate-700 transition" title="永久儲存"><i class="fa fa-save"></i></button>
                 </div>
-                <div v-else></div> <div class="flex gap-1">
+                <div v-else></div>
+
+                <div class="flex gap-1">
                   <button v-if="parsedLyrics.length > 0" @click="isDynamicLyricMode = !isDynamicLyricMode" class="w-7 h-7 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition text-xs" :title="isDynamicLyricMode ? '切換為純文字' : '切換為動態歌詞'">
                       <i class="fa" :class="isDynamicLyricMode ? 'fa-align-left' : 'fa-play-circle'"></i>
                   </button>
@@ -142,7 +144,7 @@
 								</div>
 						</div>
 
-						<div v-else class="flex flex-col items-start px-1 pt-2 pb-2 w-full h-full">
+						<div v-else class="flex flex-col items-start px-1 pt-12 pb-2 w-full h-full">
 								<pre class="text-base sm:text-lg text-left text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap p-4 sm:p-5 border border-slate-700 bg-slate-900/80 rounded-xl font-mono leading-relaxed">{{ currentLyricRaw }}</pre>
 						</div>
 					</template>
@@ -189,10 +191,10 @@
             </div>
             
             <div class="flex items-center gap-2 shrink-0">
-							<button @click.stop="toggleMyFavorite(song)" class="p-2 transition text-lg" title="點擊即可快速將歌曲加入自己的名單！">
-								<i :class="isMyFavorite(song) ? 'fa-solid fa-heart text-red-500' : 'fa-regular fa-heart text-slate-500 hover:text-red-400'"></i>
-							</button>
-						</div>
+              <button @click.stop="toggleMyFavorite(song)" class="p-2 transition text-lg" title="點擊即可快速將歌曲加入自己的名單！">
+                <i :class="isMyFavorite(song) ? 'fa-solid fa-heart text-red-500' : 'fa-regular fa-heart text-slate-500 hover:text-red-400'"></i>
+              </button>
+            </div>
           </div>
           
           <div v-if="filteredSongs.length === 0" class="py-20 text-center text-slate-500">
@@ -384,7 +386,8 @@
   </div>
 
   <script>
-    const DEFAULT_GAS_API_URL = "YOUR_GAS_WEB_APP_URL_HERE";
+    // 【全新修改】：直接將您真實運作的 GAS API 網址寫死在前端作為預設值，讓親友體驗達到完美的「隨插即用」
+    const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbbyH_Wb2-rrw4EixwoGGZ3EfXTrBRNFuqcC28Ukf6j8wEg2T5_ny1V3_h1f2wwDC7NebUYA/exec";
 
     const { createApp, ref, computed, watch, nextTick, onMounted } = Vue;
 
@@ -454,7 +457,6 @@
         const isMuted = ref(false);
         const pitchShift = ref(0);
 
-        // 簡化音訊引擎，移除原伴唱雙軌架構
         let vocalAudio = null;
         let tonePitchShiftNode = null;
         let vocalGainNode = null;
@@ -712,8 +714,12 @@
           vocalAudio.currentTime = targetTime;
         };
 
+        // 【精準修復】：修正防呆驗證邏輯，允許使用內建的真實網址正常儲存
         const fetchDatabase = async () => {
-          if (!gasApiUrl.value || gasApiUrl.value === DEFAULT_GAS_API_URL) return showSettingsModal.value = true;
+          if (!gasApiUrl.value || gasApiUrl.value.trim() === "" || gasApiUrl.value.includes("YOUR_GAS_WEB_APP_URL_HERE")) {
+            showSettingsModal.value = true;
+            return;
+          }
           try {
             const res = await fetch(`${gasApiUrl.value}?action=getDb`);
             const json = await res.json();
