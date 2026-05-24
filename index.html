@@ -62,7 +62,7 @@
               <p class="text-base text-slate-400 truncate flex-1"><i class="fa fa-microphone mr-1"></i>{{ currentSong ? currentSong.singer : '未知歌手' }}</p>
               
               <div class="text-right shrink-0 flex items-center gap-1">
-                <button v-if="currentSong" @click="openEditOwnersModal" class="text-sm bg-cyan-950/80 text-cyan-400 hover:bg-cyan-900 border border-cyan-800 px-3 py-1 rounded-full flex items-center gap-1 font-semibold truncate max-w-[140px] sm:max-w-[180px] transition cursor-pointer" title="查看完整名單或加歌">
+                <button v-if="currentSong" @click="openEditOwnersModal" class="text-sm bg-cyan-950/80 text-cyan-400 hover:bg-cyan-900 border border-cyan-800 px-3 py-1 rounded-full flex items-center gap-1 font-semibold truncate max-w-[140px] sm:max-w-[180px] transition cursor-pointer" title="查看完整名單或[移除]、[加入]我的歌單">
                   <i class="fa fa-list-ul"></i>
                   <span>點歌: {{ currentSong && currentSong.owners && currentSong.owners.length ? currentSong.owners.join(', ') : '無' }}</span>
                 </button>
