@@ -196,7 +196,6 @@
               
               <span class="text-sm text-slate-600 font-mono w-4 text-right shrink-0">{{ index + 1 }}</span>
               <div class="overflow-hidden pl-1 flex flex-col justify-center">
-                <!-- 【新增 LRC 標籤的顯示邏輯】 -->
                 <p class="font-bold text-base flex items-center gap-2" :class="currentSong && currentSong.id === song.id ? 'text-indigo-400' : 'text-slate-200'">
                   <span class="truncate">{{ song.title }}</span>
                   <span v-if="hasDynamicLyrics(song.lyric)" class="text-[9px] bg-cyan-950 text-cyan-400 border border-cyan-800/80 px-1 py-0.5 rounded shadow-sm whitespace-nowrap" title="支援動態歌詞">LRC</span>
@@ -278,7 +277,7 @@
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-xl font-bold text-green-400 flex items-center gap-2"><i class="fa fa-envelope-open"></i> 新增點歌願望</h3>
         
-        <!-- 【新增防呆警告區塊】 -->
+        <!-- 防呆警告區塊 -->
         <div class="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-3">
           <p class="text-sm text-yellow-400 font-bold flex items-start gap-2">
             <i class="fa fa-exclamation-triangle mt-0.5"></i>
@@ -468,10 +467,14 @@
 
         const showToast = ref(false);
         const toastMessage = ref('');
-        const triggerToast = (msg) => {
+        let toastTimer = null; // 新增計時器變數
+        
+        // 升級版 triggerToast 支援自訂停留秒數
+        const triggerToast = (msg, duration = 4500) => {
           toastMessage.value = msg;
           showToast.value = true;
-          setTimeout(() => { showToast.value = false; }, 4500);
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => { showToast.value = false; }, duration);
         };
 
         const showOrderModal = ref(false);
@@ -509,10 +512,11 @@
         let vocalGainNode = null;
         let isEngineInitialized = false;
 
+        const isFirstPlay = ref(true); // 記錄是否為第一次點播
+
         const currentSong = computed(() => songs.value.find(s => s.id === currentSongId.value) || null);
         const currentLyricRaw = computed(() => currentSong.value ? currentSong.value.lyric : '');
 
-        // 【新增】：判斷該字串是否包含動態歌詞的標準時間軸
         const hasDynamicLyrics = (lyricText) => {
           if (!lyricText) return false;
           return /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyricText);
@@ -693,7 +697,14 @@
             if (audioCache[id]) {
                vocalAudio.src = URL.createObjectURL(base64ToBlob(audioCache[id].vBase64, 'audio/mpeg'));
             } else {
-               triggerToast("⏳ 載入音檔中，請稍候...");
+               // 判斷是否為首次播放並給予貼心提示
+               if (isFirstPlay.value) {
+                 triggerToast("💡 為了支援隨時升降 Key，第一首會下載較久，之後的歌曲將自動為您預載！", 6500);
+                 isFirstPlay.value = false;
+               } else {
+                 triggerToast("⏳ 載入音檔中，請稍候...");
+               }
+               
                const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
                const vText = await vRes.text();
                if (playSessionCounter !== currentSessionId) return; 
