@@ -29,10 +29,18 @@
       <span>{{ toastMessage }}</span>
     </div>
 
-    <header class="bg-slate-950/80 p-3 border-b border-slate-800 flex items-center justify-between shrink-0">
-      <div class="flex items-center gap-2">
+    <header class="bg-slate-950/80 p-3 border-b border-slate-800 flex items-center justify-between shrink-0 overflow-visible z-50">
+      <div class="flex items-center gap-2 relative">
         <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
         <h1 class="text-xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-500 italic">MP3 PLAYER</h1>
+        
+        <div class="group relative ml-1 flex items-center cursor-pointer">
+          <i class="fa fa-qrcode text-slate-500 hover:text-white text-lg transition p-1"></i>
+          <div class="absolute left-0 top-full mt-2 hidden group-hover:block z-[100] bg-white p-2 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] border border-slate-200 w-32">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://famidoc.github.io/mp3-player/" alt="QR Code" class="w-full h-auto rounded">
+            <p class="text-center text-[11px] text-slate-800 font-bold mt-1 tracking-wide">掃描即可聽歌</p>
+          </div>
+        </div>
       </div>
       <div class="flex gap-2">
         <button @click="toggleShow" class="p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm transition duration-200">
@@ -346,14 +354,31 @@
       </div>
     </div>
 
-    <div v-if="showInfoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
-        <h3 class="text-xl font-bold text-yellow-500 flex items-center justify-between">
-          <span><i class="fa fa-info-circle mr-2"></i>系統說明</span>
-          <button @click="showInfoModal = false" class="text-slate-500 hover:text-white"><i class="fa fa-times"></i></button>
+    <div v-if="showInfoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl">
+        <h3 class="text-xl font-bold text-yellow-500 flex items-center justify-between sticky top-0 bg-slate-900 pb-2 z-10">
+          <span><i class="fa fa-info-circle mr-2"></i>系統說明與操作手冊</span>
+          <button @click="showInfoModal = false" class="text-slate-500 hover:text-white"><i class="fa fa-times text-xl"></i></button>
         </h3>
-        <p class="text-sm text-slate-300">本系統使用 GitHub Pages + Google Drive JSON 資料庫運作。支援 PWA、升降 Key 與背景無縫預載功能。</p>
-        <button @click="showInfoModal = false" class="w-full bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-base transition">關閉</button>
+        <div class="text-sm text-slate-300 space-y-3 leading-relaxed">
+          <p>歡迎來到專屬的音樂空間！本系統支援 PWA 離線安裝、動態歌詞與即時升降 Key 功能。</p>
+          
+          <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+            <h4 class="text-cyan-400 font-bold mb-1"><i class="fa fa-heart mr-1"></i>建立專屬歌單</h4>
+            <p>點擊每首歌右側的「空心愛心」，即可將歌曲加入您的最愛。點選畫面上方「我的歌單」按鈕即可快速篩選。</p>
+          </div>
+          
+          <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+            <h4 class="text-cyan-400 font-bold mb-1"><i class="fa fa-music mr-1"></i>播放與練唱</h4>
+            <p>支援即時升降 Key（點擊 R 還原）。動態歌詞模式下，可透過上方控制列（-0.5s / +0.5s）微調對齊歌詞顯示時間。</p>
+          </div>
+          
+          <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+            <h4 class="text-cyan-400 font-bold mb-1"><i class="fa fa-envelope mr-1"></i>點歌願望</h4>
+            <p>想唱的歌找不到？點擊下方控制列的「信封」圖示，輸入歌名與歌手送出，版主會盡快為您製作上架！</p>
+          </div>
+        </div>
+        <button @click="showInfoModal = false" class="w-full bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-base transition font-bold mt-2">我知道了</button>
       </div>
     </div>
 
