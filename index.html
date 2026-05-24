@@ -62,7 +62,7 @@
               <p class="text-base text-slate-400 truncate flex-1"><i class="fa fa-microphone mr-1"></i>{{ currentSong ? currentSong.singer : '未知歌手' }}</p>
               
               <div class="text-right shrink-0 flex items-center gap-1">
-                <button v-if="currentSong" @click="openEditOwnersModal" class="text-sm bg-cyan-950/80 text-cyan-400 hover:bg-cyan-900 border border-cyan-800 px-3 py-1 rounded-full flex items-center gap-1 font-semibold truncate max-w-[140px] sm:max-w-[180px] transition cursor-pointer" title="查看完整名單或[移除]、[加入]我的歌單">
+                <button v-if="currentSong" @click="openEditOwnersModal" class="text-sm bg-cyan-950/80 text-cyan-400 hover:bg-cyan-900 border border-cyan-800 px-3 py-1 rounded-full flex items-center gap-1 font-semibold truncate max-w-[140px] sm:max-w-[180px] transition cursor-pointer" title="查看完整名單或加歌">
                   <i class="fa fa-list-ul"></i>
                   <span>點歌: {{ currentSong && currentSong.owners && currentSong.owners.length ? currentSong.owners.join(', ') : '無' }}</span>
                 </button>
@@ -89,18 +89,28 @@
             </div>
 
             <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex flex-col justify-between">
-              <div class="text-slate-400 font-semibold mb-1 flex justify-between">
-                <span>原伴唱</span>
-                <span class="text-emerald-400 font-bold" v-if="hasCompanion">{{ faderValue === 0 ? '原唱' : faderValue === 1 ? '伴奏' : '混音' }}</span>
-                <span class="text-slate-500" v-else>無伴奏檔</span>
+              <div class="text-slate-400 font-semibold mb-1 flex justify-between items-center">
+                <span>歌詞與編輯</span>
+                <span v-if="parsedLyrics.length === 0" class="text-xs text-slate-500">無動態歌詞</span>
+                <span v-else class="text-xs font-bold" :class="isDynamicLyricMode ? 'text-cyan-400' : 'text-slate-400'">{{ isDynamicLyricMode ? '動態' : '純文字' }}</span>
               </div>
               
-              <div v-if="hasCompanion" class="flex items-center gap-2 mt-1">
-                <span class="text-xs text-slate-500">原</span>
-                <input type="range" min="0" max="1" step="0.1" v-model.number="faderValue" @input="updateFader" class="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
-                <span class="text-xs text-slate-500">伴</span>
+              <div class="flex items-center justify-between mt-1">
+                <div v-if="isDynamicLyricMode && parsedLyrics.length > 0" class="flex items-center bg-slate-800 rounded border border-slate-700/50">
+                    <button @click="lyricOffset -= 0.5" class="px-2 py-1 text-xs text-slate-400 hover:text-cyan-400 transition" title="提早">-0.5s</button>
+                    <span class="text-[10px] text-yellow-400 font-mono w-5 text-center">{{ lyricOffset > 0 ? '+' : '' }}{{ lyricOffset }}</span>
+                    <button @click="lyricOffset += 0.5" class="px-2 py-1 text-xs text-slate-400 hover:text-cyan-400 transition" title="延後">+0.5s</button>
+                    <button v-if="isAdmin" @click="saveOffset" class="px-2 py-1 text-xs text-yellow-600 hover:text-yellow-400 border-l border-slate-700 transition" title="永久儲存"><i class="fa fa-save"></i></button>
+                </div>
+                <div v-else></div> <div class="flex gap-1">
+                  <button v-if="parsedLyrics.length > 0" @click="isDynamicLyricMode = !isDynamicLyricMode" class="w-7 h-7 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition text-xs" :title="isDynamicLyricMode ? '切換為純文字' : '切換為動態歌詞'">
+                      <i class="fa" :class="isDynamicLyricMode ? 'fa-align-left' : 'fa-play-circle'"></i>
+                  </button>
+                  <button @click="startEditLyric" class="w-7 h-7 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition text-xs" title="編輯歌詞">
+                      <i class="fa fa-pencil"></i>
+                  </button>
+                </div>
               </div>
-              <div v-else class="text-xs text-slate-500 text-center py-1.5">本首僅支援原聲</div>
             </div>
           </div>
         </div>
@@ -120,31 +130,7 @@
 					</div>
 
 					<template v-else>
-						<div v-if="currentSong" class="absolute top-2 left-2 right-2 flex justify-between items-start z-10 pointer-events-none">
-                            <div class="pointer-events-auto mt-1 ml-1">
-                                <div v-if="!isDynamicLyricMode || parsedLyrics.length === 0" class="flex items-center gap-2 text-slate-300 opacity-90 bg-slate-900/80 px-3 py-1.5 rounded-lg backdrop-blur-sm shadow-sm border border-slate-700/50">
-                                    <i class="fa fa-file-audio text-base"></i>
-                                    <span class="text-sm font-bold">{{ parsedLyrics.length > 0 ? '純文字模式' : '無動態歌詞' }}</span>
-                                </div>
-                            </div>
-
-                            <div class="flex items-center pointer-events-auto">
-                                <div v-if="isDynamicLyricMode && parsedLyrics.length > 0" class="flex items-center gap-1 mr-2 bg-slate-800/90 rounded-lg p-1 backdrop-blur-sm shadow">
-                                    <button @click="lyricOffset -= 0.5" class="px-2 text-xs text-slate-300 hover:text-cyan-400 transition" title="歌詞提早 0.5 秒">-0.5s</button>
-                                    <span class="text-[11px] text-yellow-400 font-mono w-7 text-center">{{ lyricOffset > 0 ? '+' : '' }}{{ lyricOffset }}</span>
-                                    <button @click="lyricOffset += 0.5" class="px-2 text-xs text-slate-300 hover:text-cyan-400 transition" title="歌詞延後 0.5 秒">+0.5s</button>
-                                    <button v-if="isAdmin" @click="saveOffset" class="px-2 text-xs text-yellow-500 hover:text-white border-l border-slate-700 ml-1 pl-2 transition" title="永久記憶此微調值"><i class="fa fa-save"></i></button>
-                                </div>
-                                <button v-if="parsedLyrics.length > 0" @click="isDynamicLyricMode = !isDynamicLyricMode" class="w-8 h-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg backdrop-blur-sm transition text-sm shadow cursor-pointer mr-1" :title="isDynamicLyricMode ? '切換為純文字' : '切換為動態歌詞'">
-                                    <i class="fa" :class="isDynamicLyricMode ? 'fa-align-left' : 'fa-play-circle'"></i>
-                                </button>
-                                <button @click="startEditLyric" class="w-8 h-8 flex items-center justify-center bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg backdrop-blur-sm transition text-sm shadow cursor-pointer" title="編輯歌詞">
-                                    <i class="fa fa-pencil"></i>
-                                </button>
-                            </div>
-						</div>
-
-						<div v-if="parsedLyrics.length > 0 && isDynamicLyricMode" class="flex flex-col w-full h-full pt-10">
+						<div v-if="parsedLyrics.length > 0 && isDynamicLyricMode" class="flex flex-col w-full h-full pt-4">
 								<div class="flex-1 flex flex-col justify-start px-2 py-4">
 										<p v-for="(line, index) in parsedLyrics" 
 												 :key="index" 
@@ -156,7 +142,7 @@
 								</div>
 						</div>
 
-						<div v-else class="flex flex-col items-start px-1 pt-12 pb-2 w-full h-full">
+						<div v-else class="flex flex-col items-start px-1 pt-2 pb-2 w-full h-full">
 								<pre class="text-base sm:text-lg text-left text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap p-4 sm:p-5 border border-slate-700 bg-slate-900/80 rounded-xl font-mono leading-relaxed">{{ currentLyricRaw }}</pre>
 						</div>
 					</template>
@@ -171,7 +157,7 @@
           </div>
           
           <div class="flex gap-2">
-            <button @click="showMyPlaylistOnly = !showMyPlaylistOnly" :class="showMyPlaylistOnly ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50' : 'bg-slate-900 text-slate-400 border-slate-800'" class="flex-1 text-sm py-2 px-3 rounded-lg border font-semibold transition flex items-center justify-center gap-1">
+            <button @click="showMyPlaylistOnly = !showMyPlaylistOnly" :class="showMyPlaylistOnly ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-900 text-slate-400 border-slate-800'" class="flex-1 text-sm py-2 px-3 rounded-lg border font-semibold transition flex items-center justify-center gap-1">
               <i class="fa fa-heart"></i>我的歌單
             </button>
             <button @click="togglePlayModel" class="flex-1 text-sm py-2 px-3 rounded-lg border bg-slate-900 border-slate-800 text-slate-300 font-semibold transition flex items-center justify-center gap-1">
@@ -203,10 +189,10 @@
             </div>
             
             <div class="flex items-center gap-2 shrink-0">
-              <button @click.stop="toggleMyFavorite(song)" class="p-2 text-slate-500 hover:text-yellow-400 transition text-lg" title="點擊即可快速將歌曲加入自己的名單！">
-                <i class="fa" :class="isMyFavorite(song) ? 'fa-star text-yellow-400' : 'fa-star-o'"></i>
-              </button>
-            </div>
+							<button @click.stop="toggleMyFavorite(song)" class="p-2 transition text-lg" title="點擊即可快速將歌曲加入自己的名單！">
+								<i :class="isMyFavorite(song) ? 'fa-solid fa-heart text-red-500' : 'fa-regular fa-heart text-slate-500 hover:text-red-400'"></i>
+							</button>
+						</div>
           </div>
           
           <div v-if="filteredSongs.length === 0" class="py-20 text-center text-slate-500">
@@ -265,7 +251,7 @@
       </div>
 
       <div class="text-center text-[11px] text-slate-600 font-mono pt-1 border-t border-slate-800/50 mt-1">
-        @2026 by Famidoc Chang & Gemini
+        @2026 by Famidoc Chang & Gemini Ultra
       </div>
     </footer>
 
@@ -364,7 +350,7 @@
           <span><i class="fa fa-info-circle mr-2"></i>系統說明</span>
           <button @click="showInfoModal = false" class="text-slate-500 hover:text-white"><i class="fa fa-times"></i></button>
         </h3>
-        <p class="text-sm text-slate-300">本系統使用 GitHub Pages + Google Drive JSON 資料庫運作。支援 PWA、升降 Key 與原伴唱分離功能。</p>
+        <p class="text-sm text-slate-300">本系統使用 GitHub Pages + Google Drive JSON 資料庫運作。支援 PWA、升降 Key 與背景無縫預載功能。</p>
         <button @click="showInfoModal = false" class="w-full bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-base transition">關閉</button>
       </div>
     </div>
@@ -467,17 +453,14 @@
         const volume = ref(parseFloat(localStorage.getItem('mp3player_volume') || '1.0'));
         const isMuted = ref(false);
         const pitchShift = ref(0);
-        const faderValue = ref(0); 
 
+        // 簡化音訊引擎，移除原伴唱雙軌架構
         let vocalAudio = null;
-        let instAudio = null;
         let tonePitchShiftNode = null;
         let vocalGainNode = null;
-        let instGainNode = null;
         let isEngineInitialized = false;
 
         const currentSong = computed(() => songs.value.find(s => s.id === currentSongId.value) || null);
-        const hasCompanion = computed(() => currentSong.value && !!currentSong.value.instDriveId);
         const currentLyricRaw = computed(() => currentSong.value ? currentSong.value.lyric : '');
 
         const parsedLyrics = computed(() => {
@@ -562,35 +545,21 @@
           await Tone.start();
           vocalAudio = new Audio();
           vocalAudio.crossOrigin = "anonymous";
-          instAudio = new Audio();
-          instAudio.crossOrigin = "anonymous";
 
           vocalGainNode = new Tone.Gain(1);
-          instGainNode = new Tone.Gain(1);
           tonePitchShiftNode = new Tone.PitchShift(pitchShift.value).toDestination();
 
           Tone.connect(Tone.context.createMediaElementSource(vocalAudio), vocalGainNode);
-          Tone.connect(Tone.context.createMediaElementSource(instAudio), instGainNode);
           Tone.connect(vocalGainNode, tonePitchShiftNode);
-          Tone.connect(instGainNode, tonePitchShiftNode);
 					
           vocalAudio.addEventListener('timeupdate', () => {
             currentTime.value = vocalAudio.currentTime;
-            if (hasCompanion.value && Math.abs(vocalAudio.currentTime - instAudio.currentTime) > 0.15) {
-              instAudio.currentTime = vocalAudio.currentTime;
-            }
           });
           vocalAudio.addEventListener('durationchange', () => duration.value = vocalAudio.duration);
           vocalAudio.addEventListener('ended', playNextSongAuto);
           
-          vocalAudio.addEventListener('play', () => {
-             isPlaying.value = true;
-             if (hasCompanion.value && instAudio.paused) instAudio.play();
-          });
-          vocalAudio.addEventListener('pause', () => {
-             isPlaying.value = false;
-             if (hasCompanion.value && !instAudio.paused) instAudio.pause();
-          });
+          vocalAudio.addEventListener('play', () => isPlaying.value = true);
+          vocalAudio.addEventListener('pause', () => isPlaying.value = false);
 
           vocalAudio.addEventListener('error', () => {
             triggerToast("❌ 無法讀取歌曲，請確認雲端硬碟檔案是否存在。");
@@ -611,19 +580,10 @@
         const updateVolume = () => {
           localStorage.setItem('mp3player_volume', volume.value.toString());
           if (!isEngineInitialized) return;
-          
-          const currentVol = isMuted.value ? 0 : volume.value;
-          if (hasCompanion.value) {
-            vocalGainNode.gain.value = (1 - faderValue.value) * currentVol;
-            instGainNode.gain.value = faderValue.value * currentVol;
-          } else {
-            vocalGainNode.gain.value = currentVol;
-            instGainNode.gain.value = 0;
-          }
+          vocalGainNode.gain.value = isMuted.value ? 0 : volume.value;
         };
 
         const toggleMute = () => { isMuted.value = !isMuted.value; updateVolume(); };
-        const updateFader = () => updateVolume();
         const adjustPitch = async(amount) => {
           await initAudioEngine();
           pitchShift.value = Math.max(-6, Math.min(6, pitchShift.value + amount));
@@ -654,14 +614,7 @@
             if (!vocalId) return;
             const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
             const vBase64 = await vRes.text();
-            
-            let iBase64 = null;
-            if (nextSong.instDriveId) {
-              const iRes = await fetch(`${gasApiUrl.value}?action=stream&id=${nextSong.instDriveId}`);
-              iBase64 = await iRes.text();
-            }
-            
-            audioCache[nextSong.id] = { vBase64, iBase64 };
+            audioCache[nextSong.id] = { vBase64 };
           } catch(e) {}
         };
 
@@ -671,7 +624,6 @@
 
           await initAudioEngine();
           if (vocalAudio) vocalAudio.pause();
-          if (instAudio) instAudio.pause();
           isPlaying.value = false;
           isEditingLyric.value = false; 
 
@@ -685,10 +637,6 @@
           try {
             if (audioCache[id]) {
                vocalAudio.src = URL.createObjectURL(base64ToBlob(audioCache[id].vBase64, 'audio/mpeg'));
-               if (song.instDriveId && audioCache[id].iBase64) {
-                 instAudio.src = URL.createObjectURL(base64ToBlob(audioCache[id].iBase64, 'audio/mpeg'));
-                 faderValue.value = 0;
-               } else instAudio.src = '';
             } else {
                triggerToast("⏳ 載入音檔中，請稍候...");
                const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
@@ -696,17 +644,9 @@
                if (playSessionCounter !== currentSessionId) return; 
 
                vocalAudio.src = URL.createObjectURL(base64ToBlob(vText, 'audio/mpeg'));
-               if (song.instDriveId) {
-                 const iRes = await fetch(`${gasApiUrl.value}?action=stream&id=${song.instDriveId}`);
-                 const iText = await iRes.text();
-                 if (playSessionCounter !== currentSessionId) return; 
-                 instAudio.src = URL.createObjectURL(base64ToBlob(iText, 'audio/mpeg'));
-                 faderValue.value = 0;
-               } else instAudio.src = '';
             }
 
             vocalAudio.load();
-            if (song.instDriveId) instAudio.load();
 
             if ('mediaSession' in navigator) {
               navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.singer, album: 'Famidoc MP3 Player' });
@@ -714,7 +654,6 @@
 
             updateVolume();
             await vocalAudio.play();
-            if (song.instDriveId) await instAudio.play();
             isPlaying.value = true;
             showSongList.value = false; 
 
@@ -758,7 +697,6 @@
           if (playlistQueue.value.length === 0) return;
           if (playModel.value === 'anchor') {
             vocalAudio.currentTime = 0; vocalAudio.play();
-            if (hasCompanion.value) { instAudio.currentTime = 0; instAudio.play(); }
           } else if (playModel.value === 'random') {
             const randomIdx = Math.floor(Math.random() * playlistQueue.value.length);
             playSongById(playlistQueue.value[randomIdx].id);
@@ -772,7 +710,6 @@
           const rect = e.currentTarget.getBoundingClientRect();
           const targetTime = (e.clientX - rect.left) / rect.width * duration.value;
           vocalAudio.currentTime = targetTime;
-          if (hasCompanion.value) instAudio.currentTime = targetTime;
         };
 
         const fetchDatabase = async () => {
@@ -944,7 +881,6 @@
               
               if (currentSongId.value === editSongForm.value.songId) {
                 if (vocalAudio) vocalAudio.pause();
-                if (instAudio) instAudio.pause();
                 isPlaying.value = false;
                 currentSongId.value = '';
                 showSongList.value = true;
@@ -1015,10 +951,10 @@
           gasApiUrl, userName, adminPwd, isAdmin, songs, visitors, visitorListString, loading, showToast, toastMessage, triggerToast,
           showSongList, searchQuery, showMyPlaylistOnly, playModel, checkedSongs, filteredSongs, playlistQueue,
           currentSongId, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex, lyricOffset,
-          isPlaying, currentTime, duration, volume, isMuted, progressPercent, faderValue, pitchShift, hasCompanion,
+          isPlaying, currentTime, duration, volume, isMuted, progressPercent, pitchShift,
           showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, showEditOwnersModal, orderForm, uploadForm, editSongForm, editOwnersForm,
           isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, openEditOwnersModal, submitEditSong, submitEditOwners, deleteSong, saveOffset,
-          toggleShow, togglePlayModel, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateVolume, updateFader, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, formatTime
+          toggleShow, togglePlayModel, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateVolume, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, formatTime
         };
       }
     }).mount('#app');
