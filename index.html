@@ -62,11 +62,13 @@
               <p class="text-base text-slate-400 truncate flex-1"><i class="fa fa-microphone mr-1"></i>{{ currentSong ? currentSong.singer : '未知歌手' }}</p>
               
               <div class="text-right shrink-0 flex items-center gap-1">
-                <span class="text-sm bg-cyan-950/80 text-cyan-400 border border-cyan-800 px-3 py-1 rounded-full inline-block font-semibold truncate max-w-[140px] sm:max-w-[180px]">
-                  點歌: {{ currentSong && currentSong.owners && currentSong.owners.length ? currentSong.owners.join(', ') : '無' }}
-                </span>
-                <button v-if="isAdmin && currentSong" @click="openEditSongModal" class="p-1 text-slate-400 hover:text-cyan-400 transition" title="編輯歌曲資訊">
-                  <i class="fa fa-edit"></i>
+                <button v-if="currentSong" @click="openEditOwnersModal" class="text-sm bg-cyan-950/80 text-cyan-400 hover:bg-cyan-900 border border-cyan-800 px-3 py-1 rounded-full flex items-center gap-1 font-semibold truncate max-w-[140px] sm:max-w-[180px] transition cursor-pointer" title="查看完整名單或加歌">
+                  <i class="fa fa-list-ul"></i>
+                  <span>點歌: {{ currentSong && currentSong.owners && currentSong.owners.length ? currentSong.owners.join(', ') : '無' }}</span>
+                </button>
+                
+                <button v-if="isAdmin && currentSong" @click="openEditSongModal" class="p-1 text-slate-500 hover:text-cyan-400 transition" title="編輯歌曲基礎資訊">
+                  <i class="fa fa-cog"></i>
                 </button>
               </div>
             </div>
@@ -118,8 +120,7 @@
 					</div>
 
 					<template v-else>
-                        <div v-if="currentSong" class="absolute top-2 left-2 right-2 flex justify-between items-start z-10 pointer-events-none">
-                            
+						<div v-if="currentSong" class="absolute top-2 left-2 right-2 flex justify-between items-start z-10 pointer-events-none">
                             <div class="pointer-events-auto mt-1 ml-1">
                                 <div v-if="!isDynamicLyricMode || parsedLyrics.length === 0" class="flex items-center gap-2 text-slate-300 opacity-90 bg-slate-900/80 px-3 py-1.5 rounded-lg backdrop-blur-sm shadow-sm border border-slate-700/50">
                                     <i class="fa fa-file-audio text-base"></i>
@@ -155,7 +156,7 @@
 								</div>
 						</div>
 
-                        <div v-else class="flex flex-col items-start px-1 pt-12 pb-2 w-full h-full">
+						<div v-else class="flex flex-col items-start px-1 pt-12 pb-2 w-full h-full">
 								<pre class="text-base sm:text-lg text-left text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap p-4 sm:p-5 border border-slate-700 bg-slate-900/80 rounded-xl font-mono leading-relaxed">{{ currentLyricRaw }}</pre>
 						</div>
 					</template>
@@ -202,7 +203,7 @@
             </div>
             
             <div class="flex items-center gap-2 shrink-0">
-              <button @click.stop="toggleMyFavorite(song)" class="p-2 text-slate-500 hover:text-yellow-400 transition text-lg">
+              <button @click.stop="toggleMyFavorite(song)" class="p-2 text-slate-500 hover:text-yellow-400 transition text-lg" title="點擊即可快速將歌曲加入自己的名單！">
                 <i class="fa" :class="isMyFavorite(song) ? 'fa-star text-yellow-400' : 'fa-star-o'"></i>
               </button>
             </div>
@@ -264,7 +265,7 @@
       </div>
 
       <div class="text-center text-[11px] text-slate-600 font-mono pt-1 border-t border-slate-800/50 mt-1">
-        @2026 by Famidoc Chang & Gemini pro
+        @2026 by Famidoc Chang & Gemini
       </div>
     </footer>
 
@@ -289,9 +290,23 @@
       </div>
     </div>
 
+    <div v-if="showEditOwnersModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
+        <h3 class="text-xl font-bold text-cyan-400 flex items-center gap-2"><i class="fa fa-users"></i> 編輯點歌者名單</h3>
+        <p class="text-sm text-slate-400">為歌曲「<span class="text-yellow-400 font-bold">{{ editOwnersForm.songTitle }}</span>」修改點歌者，多人請以逗號分隔。</p>
+        <div>
+          <textarea v-model="editOwnersForm.ownersStr" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base text-slate-100 focus:border-cyan-500"></textarea>
+        </div>
+        <div class="flex gap-3 pt-3">
+          <button @click="showEditOwnersModal = false" class="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-base transition">取消</button>
+          <button @click="submitEditOwners" :disabled="loading" class="flex-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 py-3 rounded-xl text-base font-bold text-white transition">{{ loading ? '儲存中...' : '儲存變更' }}</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="showEditSongModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
-        <h3 class="text-xl font-bold text-cyan-400 flex items-center gap-2"><i class="fa fa-edit"></i> 編輯歌曲資訊</h3>
+        <h3 class="text-xl font-bold text-slate-300 flex items-center gap-2"><i class="fa fa-cog"></i> 管理員：編輯基礎資訊</h3>
         <div class="space-y-3">
           <div>
             <label class="text-sm text-slate-400 block mb-1 font-bold">歌名</label>
@@ -300,10 +315,6 @@
           <div>
             <label class="text-sm text-slate-400 block mb-1 font-bold">歌手</label>
             <input type="text" v-model="editSongForm.singer" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-base text-slate-100 focus:border-cyan-500">
-          </div>
-          <div>
-            <label class="text-sm text-slate-400 block mb-1 font-bold">點歌者 (多人請用逗號分隔)</label>
-            <input type="text" v-model="editSongForm.ownersStr" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-base text-slate-100 focus:border-cyan-500">
           </div>
         </div>
         <div class="flex gap-2 pt-3">
@@ -366,6 +377,12 @@
             <label class="text-sm text-slate-400 block mb-1 font-bold">名字 / 代號</label>
             <input type="text" v-model="userName" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base text-slate-100 focus:border-indigo-500">
           </div>
+          
+          <div v-if="isAdmin" class="p-3 bg-red-950/30 border border-red-900/50 rounded-xl">
+            <label class="text-sm text-red-400 block mb-1 font-bold"><i class="fa fa-lock mr-1"></i>管理員密碼 (建檔/刪除必填)</label>
+            <input type="password" v-model="adminPwd" class="w-full bg-slate-950 border border-red-800/50 rounded-lg px-4 py-2 text-base text-slate-100 focus:border-red-500">
+          </div>
+
           <div>
             <label class="text-sm text-slate-400 block mb-1 font-bold">GAS API 網址</label>
             <input type="url" v-model="gasApiUrl" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:border-indigo-500 font-mono">
@@ -389,10 +406,11 @@
       setup() {
         const gasApiUrl = ref(localStorage.getItem('mp3player_gas_url') || DEFAULT_GAS_API_URL);
         const userName = ref(localStorage.getItem('mp3player_username') || '');
+        const adminPwd = ref(localStorage.getItem('mp3player_admin_pwd') || '');
+        
         const songs = ref([]);
         const visitors = ref({});
         
-        // 【優化1】：精確計算出當地時區 (台灣 UTC+8) 的日期字串，確保半夜 00:00 準時翻新
         const getTaiwanDateStr = () => {
           const d = new Date();
           const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
@@ -425,10 +443,12 @@
         const showInfoModal = ref(false);
         const showSettingsModal = ref(false);
         const showEditSongModal = ref(false);
+        const showEditOwnersModal = ref(false);
 
         const orderForm = ref({ songName: '', singerName: '' });
         const uploadForm = ref({ title: '', singer: '', lyric: '', fileName: '', owners: '' });
-        const editSongForm = ref({ songId: '', title: '', singer: '', ownersStr: '' });
+        const editSongForm = ref({ songId: '', title: '', singer: '' });
+        const editOwnersForm = ref({ songId: '', songTitle: '', ownersStr: '' });
 
         const isEditingLyric = ref(false);
         const editableLyric = ref('');
@@ -795,6 +815,7 @@
 
         const startEditLyric = () => { if (!currentSong.value) return; editableLyric.value = currentSong.value.lyric || ''; isEditingLyric.value = true; };
         const cancelEditLyric = () => { isEditingLyric.value = false; };
+        
         const saveLyric = async () => {
           if (!currentSong.value) return;
           loadingLyric.value = true;
@@ -824,8 +845,45 @@
               if (idx !== -1) songs.value[idx].offset = lyricOffset.value;
               triggerToast("微調值已永久記憶！");
             } else triggerToast("儲存失敗: " + json.error);
-          } catch(e) {
-            triggerToast("連線失敗");
+          } catch(e) { triggerToast("連線失敗"); }
+        };
+
+        const openEditOwnersModal = () => {
+          if (!currentSong.value) return;
+          editOwnersForm.value = {
+            songId: currentSong.value.id,
+            songTitle: currentSong.value.title,
+            ownersStr: (currentSong.value.owners || []).join(', ')
+          };
+          showEditOwnersModal.value = true;
+        };
+
+        const submitEditOwners = async () => {
+          if (!editOwnersForm.value.songId) return;
+          loading.value = true;
+          try {
+            const res = await fetch(gasApiUrl.value, {
+              method: 'POST',
+              body: JSON.stringify({
+                action: 'updateOwners',
+                songId: editOwnersForm.value.songId,
+                ownersStr: editOwnersForm.value.ownersStr,
+                userName: userName.value
+              })
+            });
+            const json = await res.json();
+            if (json.success) {
+              const idx = songs.value.findIndex(s => s.id === editOwnersForm.value.songId);
+              if (idx !== -1) songs.value[idx] = json.song;
+              triggerToast("點歌者名單更新成功！");
+              showEditOwnersModal.value = false;
+            } else {
+              triggerToast("更新失敗: " + json.error);
+            }
+          } catch (e) {
+            triggerToast("連線出錯，無法更新。");
+          } finally {
+            loading.value = false;
           }
         };
 
@@ -834,8 +892,7 @@
           editSongForm.value = {
             songId: currentSong.value.id,
             title: currentSong.value.title,
-            singer: currentSong.value.singer,
-            ownersStr: (currentSong.value.owners || []).join(', ')
+            singer: currentSong.value.singer
           };
           showEditSongModal.value = true;
         };
@@ -851,8 +908,8 @@
                 songId: editSongForm.value.songId,
                 title: editSongForm.value.title,
                 singer: editSongForm.value.singer,
-                ownersStr: editSongForm.value.ownersStr,
-                userName: userName.value
+                userName: userName.value,
+                adminPwd: adminPwd.value
               })
             });
             const json = await res.json();
@@ -877,7 +934,7 @@
           try {
             const res = await fetch(gasApiUrl.value, {
               method: 'POST',
-              body: JSON.stringify({ action: 'deleteSong', songId: editSongForm.value.songId, userName: userName.value })
+              body: JSON.stringify({ action: 'deleteSong', songId: editSongForm.value.songId, userName: userName.value, adminPwd: adminPwd.value })
             });
             const json = await res.json();
             if (json.success) {
@@ -927,7 +984,7 @@
           try {
             const res = await fetch(gasApiUrl.value, {
               method: 'POST',
-              body: JSON.stringify({ action: 'uploadSongFromUrl', title, singer, owners, lyric, fileName, userName: userName.value })
+              body: JSON.stringify({ action: 'uploadSongFromUrl', title, singer, owners, lyric, fileName, userName: userName.value, adminPwd: adminPwd.value })
             });
             const json = await res.json();
             if (json.success) { triggerToast(`建檔成功！`); songs.value.push(json.song); showUploadModal.value = false; }
@@ -938,6 +995,7 @@
         const saveSettings = () => {
           localStorage.setItem('mp3player_gas_url', gasApiUrl.value);
           localStorage.setItem('mp3player_username', userName.value);
+          localStorage.setItem('mp3player_admin_pwd', adminPwd.value);
           showSettingsModal.value = false;
           fetchDatabase();
         };
@@ -954,12 +1012,12 @@
         });
 
         return {
-          gasApiUrl, userName, isAdmin, songs, visitors, visitorListString, loading, showToast, toastMessage, triggerToast,
+          gasApiUrl, userName, adminPwd, isAdmin, songs, visitors, visitorListString, loading, showToast, toastMessage, triggerToast,
           showSongList, searchQuery, showMyPlaylistOnly, playModel, checkedSongs, filteredSongs, playlistQueue,
           currentSongId, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex, lyricOffset,
           isPlaying, currentTime, duration, volume, isMuted, progressPercent, faderValue, pitchShift, hasCompanion,
-          showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, orderForm, uploadForm, editSongForm,
-          isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, submitEditSong, deleteSong, saveOffset,
+          showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, showEditOwnersModal, orderForm, uploadForm, editSongForm, editOwnersForm,
+          isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, openEditOwnersModal, submitEditSong, submitEditOwners, deleteSong, saveOffset,
           toggleShow, togglePlayModel, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateVolume, updateFader, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, formatTime
         };
       }
