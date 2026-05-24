@@ -29,6 +29,7 @@
       <span>{{ toastMessage }}</span>
     </div>
 
+    <!-- 加入 QR Code 的 Header -->
     <header class="bg-slate-950/80 p-3 border-b border-slate-800 flex items-center justify-between shrink-0 overflow-visible z-50">
       <div class="flex items-center gap-2 relative">
         <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
@@ -61,6 +62,7 @@
 
     <main class="flex-1 overflow-hidden relative flex flex-col">
       
+      <!-- ================= 歌詞與播放狀態頁面 ================= -->
       <section v-show="!showSongList" class="flex-1 flex flex-col overflow-hidden p-3">
         <div class="bg-slate-950/50 rounded-2xl p-3 border border-slate-800/60 mb-2 shrink-0">
           
@@ -159,6 +161,7 @@
 				</div>
       </section>
 
+      <!-- ================= 歌單頁面 ================= -->
       <section v-show="showSongList" class="flex-1 flex flex-col overflow-hidden">
         <div class="p-3 bg-slate-950/30 border-b border-slate-800/50 flex flex-col gap-2 shrink-0">
           <div class="relative">
@@ -192,9 +195,13 @@
               <input type="checkbox" v-model="checkedSongs" :value="song.id" @click.stop class="w-4 h-4 text-indigo-500 bg-slate-900 border-slate-700 rounded focus:ring-0 focus:ring-offset-0 cursor-pointer">
               
               <span class="text-sm text-slate-600 font-mono w-4 text-right shrink-0">{{ index + 1 }}</span>
-              <div class="overflow-hidden pl-1">
-                <p class="font-bold text-base truncate" :class="currentSong && currentSong.id === song.id ? 'text-indigo-400' : 'text-slate-200'">{{ song.title }}</p>
-                <p class="text-sm text-slate-400 truncate mt-1"><i class="fa fa-microphone text-xs mr-1"></i>{{ song.singer }}</p>
+              <div class="overflow-hidden pl-1 flex flex-col justify-center">
+                <!-- 【新增 LRC 標籤的顯示邏輯】 -->
+                <p class="font-bold text-base flex items-center gap-2" :class="currentSong && currentSong.id === song.id ? 'text-indigo-400' : 'text-slate-200'">
+                  <span class="truncate">{{ song.title }}</span>
+                  <span v-if="hasDynamicLyrics(song.lyric)" class="text-[9px] bg-cyan-950 text-cyan-400 border border-cyan-800/80 px-1 py-0.5 rounded shadow-sm whitespace-nowrap" title="支援動態歌詞">LRC</span>
+                </p>
+                <p class="text-sm text-slate-400 truncate mt-0.5"><i class="fa fa-microphone text-xs mr-1"></i>{{ song.singer }}</p>
               </div>
             </div>
             
@@ -213,6 +220,7 @@
       </section>
     </main>
 
+    <!-- ================= 控制面板 ================= -->
     <footer class="bg-slate-950/95 border-t border-slate-800 p-3 shrink-0 flex flex-col gap-2 shadow-[0_-10px_20px_rgba(0,0,0,0.3)]">
       <div class="flex items-center gap-3 text-xs text-slate-400 font-mono px-1">
         <span>{{ formatTime(currentTime) }}</span>
@@ -265,9 +273,19 @@
       </div>
     </footer>
 
+    <!-- ================= 彈出視窗群 ================= -->
     <div v-if="showOrderModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-xl font-bold text-green-400 flex items-center gap-2"><i class="fa fa-envelope-open"></i> 新增點歌願望</h3>
+        
+        <!-- 【新增防呆警告區塊】 -->
+        <div class="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-3">
+          <p class="text-sm text-yellow-400 font-bold flex items-start gap-2">
+            <i class="fa fa-exclamation-triangle mt-0.5"></i>
+            <span>請先於歌庫中搜尋，確認你想點的歌是目前歌庫中沒有的。</span>
+          </p>
+        </div>
+
         <p class="text-sm text-slate-400">提出您的點歌資訊後，系統將自動寄信通知版主處理並上傳！</p>
         <div class="space-y-4">
           <div>
@@ -286,6 +304,7 @@
       </div>
     </div>
 
+    <!-- 獨立版：點歌者名單檢視與編輯 -->
     <div v-if="showEditOwnersModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-xl font-bold text-cyan-400 flex items-center gap-2"><i class="fa fa-users"></i> 編輯點歌者名單</h3>
@@ -300,6 +319,7 @@
       </div>
     </div>
 
+    <!-- 歌曲基礎資訊與刪除 Modal (限管理員) -->
     <div v-if="showEditSongModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-xl font-bold text-slate-300 flex items-center gap-2"><i class="fa fa-cog"></i> 管理員：編輯基礎資訊</h3>
@@ -321,6 +341,7 @@
       </div>
     </div>
 
+    <!-- 建檔 Modal -->
     <div v-if="showUploadModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
         <h3 class="text-xl font-bold text-cyan-400 flex items-center gap-2"><i class="fa fa-folder-open"></i> 從硬碟檔名建檔</h3>
@@ -354,6 +375,7 @@
       </div>
     </div>
 
+    <!-- 系統說明與操作手冊 -->
     <div v-if="showInfoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl">
         <h3 class="text-xl font-bold text-yellow-500 flex items-center justify-between sticky top-0 bg-slate-900 pb-2 z-10">
@@ -370,18 +392,19 @@
           
           <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
             <h4 class="text-cyan-400 font-bold mb-1"><i class="fa fa-music mr-1"></i>播放與練唱</h4>
-            <p>支援即時升降 Key（點擊 R 還原）。動態歌詞模式下，可透過上方控制列（-0.5s / +0.5s）微調對齊歌詞顯示時間。</p>
+            <p>支援即時升降 Key（點擊 R 還原）。具備 LRC 標籤的歌曲支援動態歌詞模式，並可透過上方控制列微調時間對齊。</p>
           </div>
           
           <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
             <h4 class="text-cyan-400 font-bold mb-1"><i class="fa fa-envelope mr-1"></i>點歌願望</h4>
-            <p>想唱的歌找不到？點擊下方控制列的「信封」圖示，輸入歌名與歌手送出，版主會盡快為您製作上架！</p>
+            <p>想唱的歌找不到？請先搜尋確認歌庫中沒有，再點擊下方控制列的「信封」圖示輸入送出，版主會盡快為您製作上架！</p>
           </div>
         </div>
         <button @click="showInfoModal = false" class="w-full bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-base transition font-bold mt-2">我知道了</button>
       </div>
     </div>
 
+    <!-- 系統設定 -->
     <div v-if="showSettingsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <h3 class="text-xl font-bold text-indigo-400 flex items-center gap-2"><i class="fa fa-sliders-h"></i> 系統設定</h3>
@@ -411,7 +434,6 @@
   </div>
 
   <script>
-    // 【全新修改】：直接將您真實運作的 GAS API 網址寫死在前端作為預設值，讓親友體驗達到完美的「隨插即用」
     const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbbyH_Wb2-rrw4EixwoGGZ3EfXTrBRNFuqcC28Ukf6j8wEg2T5_ny1V3_h1f2wwDC7NebUYA/exec";
 
     const { createApp, ref, computed, watch, nextTick, onMounted } = Vue;
@@ -489,6 +511,12 @@
 
         const currentSong = computed(() => songs.value.find(s => s.id === currentSongId.value) || null);
         const currentLyricRaw = computed(() => currentSong.value ? currentSong.value.lyric : '');
+
+        // 【新增】：判斷該字串是否包含動態歌詞的標準時間軸
+        const hasDynamicLyrics = (lyricText) => {
+          if (!lyricText) return false;
+          return /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyricText);
+        };
 
         const parsedLyrics = computed(() => {
           if (!currentLyricRaw.value) return [];
@@ -739,7 +767,6 @@
           vocalAudio.currentTime = targetTime;
         };
 
-        // 【精準修復】：修正防呆驗證邏輯，允許使用內建的真實網址正常儲存
         const fetchDatabase = async () => {
           if (!gasApiUrl.value || gasApiUrl.value.trim() === "" || gasApiUrl.value.includes("YOUR_GAS_WEB_APP_URL_HERE")) {
             showSettingsModal.value = true;
@@ -981,7 +1008,7 @@
         return {
           gasApiUrl, userName, adminPwd, isAdmin, songs, visitors, visitorListString, loading, showToast, toastMessage, triggerToast,
           showSongList, searchQuery, showMyPlaylistOnly, playModel, checkedSongs, filteredSongs, playlistQueue,
-          currentSongId, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex, lyricOffset,
+          currentSongId, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex, lyricOffset, hasDynamicLyrics,
           isPlaying, currentTime, duration, volume, isMuted, progressPercent, pitchShift,
           showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, showEditOwnersModal, orderForm, uploadForm, editSongForm, editOwnersForm,
           isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, openEditOwnersModal, submitEditSong, submitEditOwners, deleteSong, saveOffset,
