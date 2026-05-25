@@ -127,7 +127,8 @@
           </div>
         </div>
 
-        <div ref="lyricContainer" class="flex-1 overflow-y-auto rounded-2xl bg-slate-950/60 border border-slate-800/40 p-4 scroll-smooth text-left space-y-4 no-scrollbar relative">          
+        <!-- 修正點 1: 減少歌詞外框 padding (p-4 -> p-1 sm:p-2)，移除 space-y-4 -->
+        <div ref="lyricContainer" class="flex-1 overflow-y-auto rounded-2xl bg-slate-950/60 border border-slate-800/40 p-1 sm:p-2 scroll-smooth text-left no-scrollbar relative">          
 					<div v-if="isEditingLyric" class="absolute inset-0 z-20 bg-slate-950/95 backdrop-blur-md flex flex-col p-3 rounded-2xl border border-cyan-800/50">
 						<div class="flex justify-between items-center mb-2 shrink-0 px-1">
 							<span class="text-cyan-400 font-bold text-sm"><i class="fa fa-edit mr-1"></i>編輯動態歌詞 (LRC)</span>
@@ -142,8 +143,9 @@
 					</div>
 
 					<template v-else>
-						<div v-if="parsedLyrics.length > 0 && isDynamicLyricMode" class="flex flex-col w-full h-full pt-4">
-								<div class="flex-1 flex flex-col justify-start px-2 py-4">
+						<!-- 修正點 1: 移除 pt-4 和 px-2 py-4，釋放空間貼齊邊緣 -->
+						<div v-if="parsedLyrics.length > 0 && isDynamicLyricMode" class="flex flex-col w-full h-full">
+								<div class="flex-1 flex flex-col justify-start px-0 py-2">
 										<p v-for="(line, index) in parsedLyrics" 
 												 :key="index" 
 												 :id="'lrc-line-' + index"
@@ -154,8 +156,9 @@
 								</div>
 						</div>
 
-						<div v-else class="flex flex-col items-start px-1 pt-12 pb-2 w-full h-full">
-								<pre class="text-base sm:text-lg text-left text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap p-4 sm:p-5 border border-slate-700 bg-slate-900/80 rounded-xl font-mono leading-relaxed">{{ currentLyricRaw }}</pre>
+						<!-- 修正點 1: 移除 pt-12, 改縮小 p-4 為 p-2 -->
+						<div v-else class="flex flex-col items-start w-full h-full">
+								<pre class="text-base sm:text-lg text-left text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap p-2 sm:p-3 border border-slate-700 bg-slate-900/80 rounded-xl font-mono leading-relaxed">{{ currentLyricRaw }}</pre>
 						</div>
 					</template>
 				</div>
@@ -268,7 +271,7 @@
       </div>
 
       <div class="text-center text-[11px] text-slate-600 font-mono pt-1 border-t border-slate-800/50 mt-1">
-        @2026 by Famidoc Chang & Gemini Ultra
+        @2026 by Famidoc Chang & Gemini 3.1 pro
       </div>
     </footer>
 
@@ -376,12 +379,13 @@
 
     <!-- 系統說明與操作手冊 -->
     <div v-if="showInfoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl">
-        <h3 class="text-xl font-bold text-yellow-500 flex items-center justify-between sticky top-0 bg-slate-900 pb-2 z-10">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl flex flex-col">
+        <h3 class="text-xl font-bold text-yellow-500 flex items-center justify-between sticky top-0 bg-slate-900 pb-2 z-10 shrink-0">
           <span><i class="fa fa-info-circle mr-2"></i>系統說明與操作手冊</span>
           <button @click="showInfoModal = false" class="text-slate-500 hover:text-white"><i class="fa fa-times text-xl"></i></button>
         </h3>
-        <div class="text-sm text-slate-300 space-y-3 leading-relaxed">
+        
+        <div class="text-sm text-slate-300 space-y-3 leading-relaxed flex-1 overflow-y-auto no-scrollbar">
           <p>歡迎來到專屬的音樂空間！本系統支援 PWA 離線安裝、動態歌詞與即時升降 Key 功能。</p>
           
           <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
@@ -399,7 +403,14 @@
             <p>想唱的歌找不到？請先搜尋確認歌庫中沒有，再點擊下方控制列的「信封」圖示輸入送出，版主會盡快為您製作上架！</p>
           </div>
         </div>
-        <button @click="showInfoModal = false" class="w-full bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-base transition font-bold mt-2">我知道了</button>
+
+        <!-- 修正點 3: 新增說明書詳細連結並調整按鈕佈局 -->
+        <div class="mt-2 flex flex-col gap-2 shrink-0">
+          <a href="https://docs.google.com/document/d/1DHHoTOKTw-MrpPdF3h5cpY-QmMDMcjQHrpAtCVqiZnI/edit?usp=sharing" target="_blank" class="w-full bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-800 text-cyan-400 py-3 rounded-xl text-sm transition text-center font-bold flex justify-center items-center gap-2">
+            <i class="fa fa-external-link-alt"></i> 查看詳細操作說明
+          </a>
+          <button @click="showInfoModal = false" class="w-full bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-base transition font-bold">我知道了</button>
+        </div>
       </div>
     </div>
 
@@ -452,7 +463,9 @@
           const twTime = new Date(utc + (3600000 * 8));
           return twTime.toISOString().split('T')[0];
         };
-        const todayStr = getTaiwanDateStr();
+        
+        // 修正點 2: 將 todayStr 宣告為響應式 (ref)，解決跨日無法更新的問題
+        const todayStr = ref(getTaiwanDateStr());
 
         const ADMIN_LIST = ['張文華', '陳錦慧'];
         const isAdmin = computed(() => ADMIN_LIST.includes(userName.value.trim()));
@@ -467,9 +480,8 @@
 
         const showToast = ref(false);
         const toastMessage = ref('');
-        let toastTimer = null; // 新增計時器變數
+        let toastTimer = null; 
         
-        // 升級版 triggerToast 支援自訂停留秒數
         const triggerToast = (msg, duration = 4500) => {
           toastMessage.value = msg;
           showToast.value = true;
@@ -512,7 +524,7 @@
         let vocalGainNode = null;
         let isEngineInitialized = false;
 
-        const isFirstPlay = ref(true); // 記錄是否為第一次點播
+        const isFirstPlay = ref(true); 
 
         const currentSong = computed(() => songs.value.find(s => s.id === currentSongId.value) || null);
         const currentLyricRaw = computed(() => currentSong.value ? currentSong.value.lyric : '');
@@ -563,7 +575,8 @@
           });
         });
 
-        const visitorListString = computed(() => (visitors.value[todayStr] || []).length > 0 ? (visitors.value[todayStr] || []).join('、') : '目前尚無訪客留名');
+        // 修正點 2: 使用響應式 todayStr.value 讀取最新的訪客資料
+        const visitorListString = computed(() => (visitors.value[todayStr.value] || []).length > 0 ? (visitors.value[todayStr.value] || []).join('、') : '目前尚無訪客留名');
 
         const filteredSongs = computed(() => {
           let list = [...songs.value]; 
@@ -697,7 +710,6 @@
             if (audioCache[id]) {
                vocalAudio.src = URL.createObjectURL(base64ToBlob(audioCache[id].vBase64, 'audio/mpeg'));
             } else {
-               // 判斷是否為首次播放並給予貼心提示
                if (isFirstPlay.value) {
                  triggerToast("💡 為了支援隨時升降 Key，第一首會下載較久，之後的歌曲將自動為您預載！", 6500);
                  isFirstPlay.value = false;
@@ -796,10 +808,12 @@
 
         const registerVisitor = async () => {
           if (!userName.value || !gasApiUrl.value) return;
+          // 修正點 2: 在向後端註冊訪客前，動態更新一次當前的台灣日期，避免跨日資料寫入錯誤
+          todayStr.value = getTaiwanDateStr(); 
           try {
-            const res = await fetch(gasApiUrl.value, { method: 'POST', body: JSON.stringify({ action: 'addVisitor', userName: userName.value, today: todayStr }) });
+            const res = await fetch(gasApiUrl.value, { method: 'POST', body: JSON.stringify({ action: 'addVisitor', userName: userName.value, today: todayStr.value }) });
             const json = await res.json();
-            if (json.success) visitors.value[todayStr] = json.visitors;
+            if (json.success) visitors.value[todayStr.value] = json.visitors;
           } catch (e) {}
         };
 
