@@ -1071,7 +1071,15 @@
 
         onMounted(() => {
           fetchDatabase();
-          if (!userName.value) setTimeout(() => { showSettingsModal.value = true; }, 800);
+					if (!userName.value) setTimeout(() => { showSettingsModal.value = true; }, 800);
+					// 每分鐘檢查台灣日期是否已過午夜
+					setInterval(() => {
+						const newDate = getTaiwanDateStr();
+						if (newDate !== todayStr.value) {
+							todayStr.value = newDate;         // 更新日期，跑馬燈立即切換
+							if (userName.value) registerVisitor(); // 把當前訪客登記到新的一天
+						}
+					}, 60000); // 每 60 秒檢查一次          
         });
 
         return {
