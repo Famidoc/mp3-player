@@ -181,7 +181,7 @@
         <div class="p-3 bg-slate-50/50 dark:bg-slate-950/30 border-b border-slate-200/80 dark:border-slate-800/50 flex flex-col gap-2 shrink-0 transition-colors duration-300">
           <div class="relative">
             <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-base"></i>
-            <input type="text" v-model="searchQuery" placeholder="搜尋歌名、歌手、點歌者..." class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors">
+            <input type="text" v-model="searchQuery" placeholder="搜尋歌名、歌手、點歌者，或輸入 lrc..." class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors">
           </div>
           
           <div class="flex gap-2">
@@ -642,7 +642,8 @@
           if (query) {
             list = list.filter(song => 
               song.title.toLowerCase().includes(query) || song.singer.toLowerCase().includes(query) ||
-              (song.owners && song.owners.some(owner => owner.toLowerCase().includes(query)))
+              (song.owners && song.owners.some(owner => owner.toLowerCase().includes(query))) ||
+              ((query === 'lrc' || query === '[lrc]') && hasDynamicLyrics(song.lyric))
             );
           }
           return list.reverse(); 
