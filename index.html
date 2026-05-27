@@ -170,7 +170,7 @@
 						</div>
 
 						<div v-else class="flex flex-col items-start w-full h-full">
-								<pre class="text-base sm:text-lg text-left text-slate-700 dark:text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap p-2 sm:p-3 border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 rounded-xl font-mono leading-relaxed transition-colors">{{ currentLyricRaw }}</pre>
+								<pre class="text-base sm:text-lg text-left text-slate-700 dark:text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap p-2 sm:p-3 border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 rounded-xl font-mono leading-relaxed transition-colors">{{ pureLyricText }}</pre>
 						</div>
 					</template>
 				</div>
@@ -515,7 +515,7 @@
         const showSongList = ref(true);
         const searchQuery = ref('');
         const showMyPlaylistOnly = ref(false);
-        const playModel = ref('next'); 
+        const playModel = ref('anchor'); // 修改：預設改為單曲循環播放
         const loading = ref(false);
 
         const checkedSongs = ref([]); 
@@ -570,6 +570,20 @@
 
         const currentSong = computed(() => songs.value.find(s => s.id === currentSongId.value) || null);
         const currentLyricRaw = computed(() => currentSong.value ? currentSong.value.lyric : '');
+
+        // 新增：處理動態歌詞轉換為純文字的邏輯，去除時間碼並保留空白行
+        const pureLyricText = computed(() => {
+          if (!currentLyricRaw.value) return '暫無歌詞';
+          
+          // 匹配 [mm:ss.xx] 或 [mm:ss.xxx] 或 [mm:ss]
+          const timecodeRegex = /\[\d{2}:\d{2}(?:\.\d{2,3})?\]/g;
+          let pureText = currentLyricRaw.value.replace(timecodeRegex, '');
+          
+          // 處理間奏過長產生的過多換行，保留一個空白行 (即兩個換行符號)
+          pureText = pureText.replace(/\n{3,}/g, '\n\n');
+          
+          return pureText.trim();
+        });
 
         const hasDynamicLyrics = (lyricText) => {
           if (!lyricText) return false;
@@ -1086,7 +1100,7 @@
           isDarkMode, toggleTheme, // 導出主題切換方法
           gasApiUrl, userName, adminPwd, isAdmin, songs, visitors, visitorListString, loading, showToast, toastMessage, triggerToast,
           showSongList, searchQuery, showMyPlaylistOnly, playModel, checkedSongs, filteredSongs, playlistQueue,
-          currentSongId, currentSong, parsedLyrics, currentLyricRaw, currentLrcIndex, lyricOffset, hasDynamicLyrics,
+          currentSongId, currentSong, parsedLyrics, currentLyricRaw, pureLyricText, currentLrcIndex, lyricOffset, hasDynamicLyrics,
           isPlaying, currentTime, duration, volume, isMuted, progressPercent, pitchShift,
           showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, showEditOwnersModal, orderForm, uploadForm, editSongForm, editOwnersForm,
           isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, openEditOwnersModal, submitEditSong, submitEditOwners, deleteSong, saveOffset,
