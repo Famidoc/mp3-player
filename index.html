@@ -27,6 +27,28 @@
       100% { transform: translateX(-100%); }
     }
     .animate-marquee { animation: marquee 15s linear infinite; }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 12px rgba(6, 182, 212, 0.4), 0 0 4px rgba(99, 102, 241, 0.2); }
+      50% { box-shadow: 0 0 22px rgba(6, 182, 212, 0.7), 0 0 8px rgba(99, 102, 241, 0.4); }
+    }
+    .play-glow-active {
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.3);
+      border-radius: 2px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.5);
+    }
   </style>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans min-h-screen flex items-center justify-center p-0 sm:p-4 transition-colors duration-300">
@@ -78,8 +100,9 @@
     <main class="flex-1 overflow-hidden relative flex flex-col">
       
       <!-- ================= 歌詞與播放狀態頁面 ================= -->
-      <section v-show="!showSongList" class="flex-1 flex flex-col overflow-hidden p-3">
-        <div class="bg-slate-100/60 dark:bg-slate-950/50 rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800/60 mb-2 shrink-0 transition-colors duration-300">
+      <section v-show="!showSongList" class="flex-1 flex flex-col overflow-hidden p-3 relative">
+        <canvas id="visualizer" class="absolute inset-0 w-full h-full pointer-events-none z-0 rounded-2xl opacity-60 dark:opacity-30"></canvas>
+        <div class="bg-slate-100/60 dark:bg-slate-950/50 rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800/60 mb-2 shrink-0 transition-colors duration-300 relative z-10">
           
           <div class="flex flex-col gap-1 mb-2">
             <h2 class="text-2xl font-bold text-indigo-700 dark:text-yellow-400 truncate w-full transition-colors">{{ currentSong ? currentSong.title : '未播放歌曲' }}</h2>
@@ -142,7 +165,7 @@
           </div>
         </div>
 
-        <div ref="lyricContainer" class="flex-1 overflow-y-auto rounded-2xl bg-slate-100/60 dark:bg-slate-950/60 border border-slate-200/60 dark:border-slate-800/40 p-1 sm:p-2 scroll-smooth text-left no-scrollbar relative transition-colors duration-300">          
+        <div ref="lyricContainer" @wheel="handleUserScroll" @touchstart="handleUserScroll" @mousedown="handleUserScroll" class="flex-1 overflow-y-auto rounded-2xl bg-slate-100/60 dark:bg-slate-950/60 border border-slate-200/60 dark:border-slate-800/40 p-1 sm:p-2 scroll-smooth text-left no-scrollbar relative z-10 transition-colors duration-300">          
 					<div v-if="isEditingLyric" class="absolute inset-0 z-20 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md flex flex-col p-3 rounded-2xl border border-cyan-300/50 dark:border-cyan-800/50 transition-colors">
 						<div class="flex justify-between items-center mb-2 shrink-0 px-1">
 							<span class="text-cyan-600 dark:text-cyan-400 font-bold text-sm"><i class="fa fa-edit mr-1"></i>編輯動態歌詞 (LRC)</span>
@@ -170,7 +193,7 @@
 						</div>
 
 						<div v-else class="flex flex-col items-start w-full h-full">
-								<pre class="text-base sm:text-lg text-left text-slate-700 dark:text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap p-2 sm:p-3 border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 rounded-xl font-mono leading-relaxed transition-colors">{{ pureLyricText }}</pre>
+								<pre class="text-base sm:text-lg text-left text-slate-700 dark:text-slate-200 w-full h-full overflow-x-hidden overflow-y-auto custom-scrollbar whitespace-pre-wrap p-2 sm:p-3 border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 rounded-xl font-mono leading-relaxed transition-colors">{{ pureLyricText }}</pre>
 						</div>
 					</template>
 				</div>
@@ -262,7 +285,7 @@
         <button @click="playPrev" class="text-slate-500 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-white transition p-2 text-xl active:scale-90">
           <i class="fa fa-step-backward"></i>
         </button>
-        <button @click="togglePlay" class="w-14 h-14 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 hover:brightness-110 flex items-center justify-center text-white text-xl active:scale-95 shadow-lg shadow-indigo-500/20 transition">
+        <button @click="togglePlay" :class="{ 'play-glow-active': isPlaying }" class="w-14 h-14 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 hover:brightness-110 flex items-center justify-center text-white text-xl active:scale-95 shadow-lg shadow-indigo-500/20 transition">
           <i class="fa" :class="isPlaying ? 'fa-pause' : 'fa-play ml-1'"></i>
         </button>
         <button @click="playNext" class="text-slate-500 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-white transition p-2 text-xl active:scale-90">
@@ -550,8 +573,38 @@
         
         const lyricOffset = ref(0); 
 
-        const audioCache = {}; 
+        const SONGS_CACHE_NAME = 'mp3player-songs-cache';
+
+        const getSongFromCache = async (vocalId) => {
+          try {
+            const cache = await caches.open(SONGS_CACHE_NAME);
+            const cacheKey = `https://mp3player-local/song/${vocalId}`;
+            const response = await cache.match(cacheKey);
+            if (response) {
+              return await response.text();
+            }
+          } catch (e) {
+            console.error('Cache read error:', e);
+          }
+          return null;
+        };
+
+        const cacheSong = async (vocalId, base64Text) => {
+          try {
+            const cache = await caches.open(SONGS_CACHE_NAME);
+            const cacheKey = `https://mp3player-local/song/${vocalId}`;
+            const response = new Response(base64Text, {
+              headers: { 'Content-Type': 'text/plain' }
+            });
+            await cache.put(cacheKey, response);
+          } catch (e) {
+            console.error('Cache write error:', e);
+          }
+        };
+
         let playSessionCounter = 0; 
+        let preloadAbortController = null;
+        let vocalDownloadAbortController = null; 
 
         const currentSongId = ref(''); 
         const isPlaying = ref(false);
@@ -564,6 +617,7 @@
         let vocalAudio = null;
         let tonePitchShiftNode = null;
         let vocalGainNode = null;
+        let toneAnalyserNode = null;
         let isEngineInitialized = false;
 
         const isFirstPlay = ref(true); 
@@ -623,8 +677,22 @@
           return parsedLyrics.value.length - 1;
         });
 
+        const userIsScrolling = ref(false);
+        let userScrollTimeout = null;
+
+        const handleUserScroll = () => {
+          if (isEditingLyric.value) return;
+          userIsScrolling.value = true;
+          if (userScrollTimeout) clearTimeout(userScrollTimeout);
+          userScrollTimeout = setTimeout(() => {
+            userIsScrolling.value = false;
+            const el = document.getElementById(`lrc-line-${currentLrcIndex.value}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 5000);
+        };
+
         watch(currentLrcIndex, (newVal) => {
-          if (newVal === -1 || isEditingLyric.value) return;
+          if (newVal === -1 || isEditingLyric.value || userIsScrolling.value) return;
           nextTick(() => {
             const el = document.getElementById(`lrc-line-${newVal}`);
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -676,9 +744,11 @@
 
           vocalGainNode = new Tone.Gain(1);
           tonePitchShiftNode = new Tone.PitchShift(pitchShift.value).toDestination();
+          toneAnalyserNode = new Tone.Analyser("waveform", 128);
 
           Tone.connect(Tone.context.createMediaElementSource(vocalAudio), vocalGainNode);
           Tone.connect(vocalGainNode, tonePitchShiftNode);
+          vocalGainNode.connect(toneAnalyserNode);
 					
           vocalAudio.addEventListener('timeupdate', () => {
             currentTime.value = vocalAudio.currentTime;
@@ -719,11 +789,9 @@
         };
         const resetPitch = () => { pitchShift.value = 0; if (tonePitchShiftNode) tonePitchShiftNode.pitch = 0; };
 				
-        const base64ToBlob = (base64, mimeType) => {
-          const binary = atob(base64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          return new Blob([bytes], { type: mimeType });
+        const base64ToBlob = async (base64, mimeType) => {
+          const res = await fetch(`data:${mimeType};base64,${base64}`);
+          return await res.blob();
         };
 
         const preloadNextSong = async () => {
@@ -735,20 +803,43 @@
           if (nextIdx >= playlistQueue.value.length) nextIdx = 0;
           const nextSong = playlistQueue.value[nextIdx];
           
-          if (audioCache[nextSong.id]) return; 
+          const vocalId = nextSong.vocalDriveId || nextSong.fileId || nextSong.driveId;
+          if (!vocalId) return;
+
+          const cachedData = await getSongFromCache(vocalId);
+          if (cachedData) return; 
+
+          if (preloadAbortController) {
+            preloadAbortController.abort();
+          }
+          preloadAbortController = new AbortController();
 
           try {
-            const vocalId = nextSong.vocalDriveId || nextSong.fileId || nextSong.driveId;
-            if (!vocalId) return;
-            const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
+            const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`, {
+              signal: preloadAbortController.signal
+            });
             const vBase64 = await vRes.text();
-            audioCache[nextSong.id] = { vBase64 };
-          } catch(e) {}
+            await cacheSong(vocalId, vBase64);
+          } catch(e) {
+            if (e.name !== 'AbortError') {
+              console.error('Preload error:', e);
+            }
+          }
         };
 
         const playSongById = async (id) => {
           playSessionCounter++;
           const currentSessionId = playSessionCounter;
+
+          if (vocalDownloadAbortController) {
+            vocalDownloadAbortController.abort();
+          }
+          vocalDownloadAbortController = new AbortController();
+
+          if (preloadAbortController) {
+            preloadAbortController.abort();
+            preloadAbortController = null;
+          }
 
           await initAudioEngine();
           if (vocalAudio) vocalAudio.pause();
@@ -763,21 +854,26 @@
           if (!vocalId) return triggerToast("⚠️ 找不到該歌曲的雲端硬碟 ID");
 
           try {
-            if (audioCache[id]) {
-               vocalAudio.src = URL.createObjectURL(base64ToBlob(audioCache[id].vBase64, 'audio/mpeg'));
+            const cachedData = await getSongFromCache(vocalId);
+            if (cachedData) {
+               vocalAudio.src = URL.createObjectURL(await base64ToBlob(cachedData, 'audio/mpeg'));
             } else {
                if (isFirstPlay.value) {
-                 triggerToast("💡 為了支援隨時升降 Key，第一首會下載較久，之後的歌曲將自動為您預載！", 6500);
+                 triggerToast("💡 為了支援隨時升降 Key，第一首會下載較久，之後的歌曲將自動為您預載與快取！", 6500);
                  isFirstPlay.value = false;
                } else {
                  triggerToast("⏳ 載入音檔中，請稍候...");
                }
                
-               const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`);
+               const vRes = await fetch(`${gasApiUrl.value}?action=stream&id=${vocalId}`, {
+                 signal: vocalDownloadAbortController.signal
+               });
                const vText = await vRes.text();
                if (playSessionCounter !== currentSessionId) return; 
 
-               vocalAudio.src = URL.createObjectURL(base64ToBlob(vText, 'audio/mpeg'));
+               cacheSong(vocalId, vText);
+
+               vocalAudio.src = URL.createObjectURL(await base64ToBlob(vText, 'audio/mpeg'));
             }
 
             vocalAudio.load();
@@ -794,8 +890,10 @@
             preloadNextSong();
             
           } catch(e) {
-            triggerToast("❌ 載入失敗：" + e.message);
-            isPlaying.value = false;
+            if (e.name !== 'AbortError') {
+              triggerToast("❌ 載入失敗：" + e.message);
+              isPlaying.value = false;
+            }
           }
         };
 
@@ -1084,14 +1182,99 @@
           return `${Math.floor(time / 60).toString().padStart(2, '0')}:${Math.floor(time % 60).toString().padStart(2, '0')}`;
         };
 
+        const startVisualizer = () => {
+          const canvas = document.getElementById('visualizer');
+          if (!canvas) return;
+          const ctx = canvas.getContext('2d');
+          
+          const resizeCanvas = () => {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+          };
+          resizeCanvas();
+          window.addEventListener('resize', resizeCanvas);
+
+          const draw = () => {
+            requestAnimationFrame(draw);
+            if (!ctx) return;
+            
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            ctx.clearRect(0, 0, width, height);
+
+            if (!isEngineInitialized || !toneAnalyserNode || !isPlaying.value) {
+              // Draw a static subtle baseline when not playing
+              ctx.beginPath();
+              ctx.moveTo(0, height / 2);
+              ctx.lineTo(width, height / 2);
+              ctx.strokeStyle = isDarkMode.value ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+              return;
+            }
+
+            const values = toneAnalyserNode.getValue();
+            
+            ctx.beginPath();
+            ctx.lineWidth = 3;
+            const gradient = ctx.createLinearGradient(0, 0, width, 0);
+            if (isDarkMode.value) {
+              gradient.addColorStop(0, 'rgba(6, 182, 212, 0.8)');   // Cyan
+              gradient.addColorStop(0.5, 'rgba(99, 102, 241, 0.8)'); // Indigo
+              gradient.addColorStop(1, 'rgba(236, 72, 153, 0.8)');   // Pink
+            } else {
+              gradient.addColorStop(0, 'rgba(8, 145, 178, 0.6)');   // Cyan dark
+              gradient.addColorStop(0.5, 'rgba(79, 70, 229, 0.6)');  // Indigo dark
+              gradient.addColorStop(1, 'rgba(219, 39, 119, 0.6)');   // Pink dark
+            }
+            ctx.strokeStyle = gradient;
+
+            const sliceWidth = width / values.length;
+            let x = 0;
+
+            for (let i = 0; i < values.length; i++) {
+              const v = values[i];
+              const y = (v * height / 3) + (height / 2);
+
+              if (i === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                ctx.lineTo(x, y);
+              }
+
+              x += sliceWidth;
+            }
+
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+
+            ctx.lineTo(width, height);
+            ctx.lineTo(0, height);
+            const fillGradient = ctx.createLinearGradient(0, height / 2, 0, height);
+            if (isDarkMode.value) {
+              fillGradient.addColorStop(0, 'rgba(99, 102, 241, 0.05)');
+              fillGradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+            } else {
+              fillGradient.addColorStop(0, 'rgba(99, 102, 241, 0.03)');
+              fillGradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+            }
+            ctx.fillStyle = fillGradient;
+            ctx.fill();
+          };
+
+          draw();
+        };
+
         onMounted(() => {
           fetchDatabase();
+          startVisualizer();
 					if (!userName.value) setTimeout(() => { showSettingsModal.value = true; }, 800);
 					// 每分鐘檢查台灣日期是否已過午夜
 					setInterval(() => {
 						const newDate = getTaiwanDateStr();
 						if (newDate !== todayStr.value) {
-							todayStr.value = newDate;         // 更新日期，跑馬燈立即切換
+							todayStr.value = newDate;         // 更新日期，跑慢燈立即切換
 							if (userName.value) registerVisitor(); // 把當前訪客登記到新的一天
 						}
 					}, 60000); // 每 60 秒檢查一次          
@@ -1104,7 +1287,7 @@
           currentSongId, currentSong, parsedLyrics, currentLyricRaw, pureLyricText, currentLrcIndex, lyricOffset, hasDynamicLyrics,
           isPlaying, currentTime, duration, volume, isMuted, progressPercent, pitchShift,
           showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, showEditOwnersModal, orderForm, uploadForm, editSongForm, editOwnersForm,
-          isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, openEditOwnersModal, submitEditSong, submitEditOwners, deleteSong, saveOffset,
+          isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, openEditOwnersModal, submitEditSong, submitEditOwners, deleteSong, saveOffset, handleUserScroll,
           toggleShow, togglePlayModel, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateVolume, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, resetGasUrl, formatTime
         };
       }
