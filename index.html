@@ -1186,25 +1186,26 @@
           const canvas = document.getElementById('visualizer');
           if (!canvas) return;
           const ctx = canvas.getContext('2d');
-          
-          const resizeCanvas = () => {
-            canvas.width = canvas.clientWidth;
-            canvas.height = canvas.clientHeight;
-          };
-          resizeCanvas();
-          window.addEventListener('resize', resizeCanvas);
 
           const draw = () => {
             requestAnimationFrame(draw);
             if (!ctx) return;
             
+            // 💡 動態調整畫布大小：解決因為 v-show="!showSongList" 初始為隱藏時
+            // clientWidth/Height 為 0，導致畫布解析度鎖定在 0x0 的 Bug
+            if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+              canvas.width = canvas.clientWidth;
+              canvas.height = canvas.clientHeight;
+            }
+            
             const width = canvas.width;
             const height = canvas.height;
+            if (width === 0 || height === 0) return; // 尚未顯示時不繪製
             
             ctx.clearRect(0, 0, width, height);
 
             if (!isEngineInitialized || !toneAnalyserNode || !isPlaying.value) {
-              // Draw a static subtle baseline when not playing
+              // 靜止時畫一條淡藍色的基準線
               ctx.beginPath();
               ctx.moveTo(0, height / 2);
               ctx.lineTo(width, height / 2);
