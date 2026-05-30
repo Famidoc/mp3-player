@@ -315,13 +315,6 @@
       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl transition-colors">
         <h3 class="text-xl font-bold text-green-600 dark:text-green-400 flex items-center gap-2"><i class="fa fa-envelope-open"></i> 新增點歌願望</h3>
         
-        <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-lg p-3 transition-colors">
-          <p class="text-sm text-yellow-700 dark:text-yellow-400 font-bold flex items-start gap-2">
-            <i class="fa fa-exclamation-triangle mt-0.5"></i>
-            <span>請先於歌庫中搜尋，確認你想點的歌是目前歌庫中沒有的。</span>
-          </p>
-        </div>
-
         <p class="text-sm text-slate-500 dark:text-slate-400">提出您的點歌資訊後，系統將自動寄信通知版主處理並上傳！</p>
         <div class="space-y-4">
           <div>
@@ -332,10 +325,13 @@
             <label class="text-sm text-slate-600 dark:text-slate-400 block mb-1 font-bold">原唱歌手</label>
             <input type="text" v-model="orderForm.singerName" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-base text-slate-800 dark:text-slate-100 focus:border-green-500 transition-colors">
           </div>
+          <p v-if="searchFeedbackMessage" class="text-sm font-semibold transition-colors mt-2" :class="isSongDuplicate ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'">
+            {{ searchFeedbackMessage }}
+          </p>
         </div>
         <div class="flex gap-3 pt-3">
           <button @click="showOrderModal = false" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-white py-3 rounded-xl text-base transition">取消</button>
-          <button @click="submitOrderSong" :disabled="loading" class="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 py-3 rounded-xl text-base font-bold text-white transition">{{ loading ? '寄送中...' : '送出申請' }}</button>
+          <button @click="submitOrderSong" :disabled="loading || isSearchingLibrary || isSongDuplicate || !orderForm.songName.trim() || !orderForm.singerName.trim()" class="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 py-3 rounded-xl text-base font-bold text-white transition">{{ loading ? '寄送中...' : (isSearchingLibrary ? '搜尋中...' : '送出申請') }}</button>
         </div>
       </div>
     </div>
@@ -562,6 +558,10 @@
         const showEditOwnersModal = ref(false);
 
         const orderForm = ref({ songName: '', singerName: '' });
+        const isSearchingLibrary = ref(false);
+        const isSongDuplicate = ref(false);
+        const searchFeedbackMessage = ref('');
+        let searchTimer = null;
         const uploadForm = ref({ title: '', singer: '', lyric: '', fileName: '', owners: '' });
         const editSongForm = ref({ songId: '', title: '', singer: '' });
         const editOwnersForm = ref({ songId: '', songTitle: '', ownersStr: '' });
@@ -572,6 +572,50 @@
         const isDynamicLyricMode = ref(true); 
         
         const lyricOffset = ref(0); 
+
+        watch(showOrderModal, (newVal) => {
+          if (!newVal) {
+            orderForm.value = { songName: '', singerName: '' };
+            isSearchingLibrary.value = false;
+            isSongDuplicate.value = false;
+            searchFeedbackMessage.value = '';
+            if (searchTimer) clearTimeout(searchTimer);
+          }
+        });
+
+        watch(() => [orderForm.value.songName, orderForm.value.singerName], ([newSong, newSinger]) => {
+          if (searchTimer) clearTimeout(searchTimer);
+          
+          const song = (newSong || '').trim();
+          const singer = (newSinger || '').trim();
+          
+          if (!song || !singer) {
+            isSearchingLibrary.value = false;
+            isSongDuplicate.value = false;
+            searchFeedbackMessage.value = '';
+            return;
+          }
+          
+          isSearchingLibrary.value = true;
+          isSongDuplicate.value = false;
+          searchFeedbackMessage.value = '';
+          
+          searchTimer = setTimeout(() => {
+            const duplicate = songs.value.some(s => 
+              s.title.trim().toLowerCase() === song.toLowerCase() && 
+              s.singer.trim().toLowerCase() === singer.toLowerCase()
+            );
+            
+            if (duplicate) {
+              isSongDuplicate.value = true;
+              searchFeedbackMessage.value = '⚠️ 歌庫中已有此歌曲，不需重複點歌喔！';
+            } else {
+              isSongDuplicate.value = false;
+              searchFeedbackMessage.value = '✓ 歌庫中無此歌曲，您可以送出點歌申請。';
+            }
+            isSearchingLibrary.value = false;
+          }, 1000);
+        });
 
         const SONGS_CACHE_NAME = 'mp3player-songs-cache';
 
@@ -1288,6 +1332,7 @@
           currentSongId, currentSong, parsedLyrics, currentLyricRaw, pureLyricText, currentLrcIndex, lyricOffset, hasDynamicLyrics,
           isPlaying, currentTime, duration, volume, isMuted, progressPercent, pitchShift,
           showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, showEditOwnersModal, orderForm, uploadForm, editSongForm, editOwnersForm,
+          isSearchingLibrary, isSongDuplicate, searchFeedbackMessage,
           isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, openEditOwnersModal, submitEditSong, submitEditOwners, deleteSong, saveOffset, handleUserScroll,
           toggleShow, togglePlayModel, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateVolume, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, resetGasUrl, formatTime
         };
