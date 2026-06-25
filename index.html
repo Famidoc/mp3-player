@@ -75,6 +75,13 @@
         </div>
       </div>
       <div class="flex gap-2 items-center">
+        <!-- 新增：健康聆聽計時器快捷按鈕 -->
+        <button @click="showTimerModal = true" class="p-2.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-sm transition duration-200 flex items-center gap-1.5" :title="isTimerEnabled ? '計時器運行中，剩餘 ' + formatTimerRemaining : '設定健康聆聽計時器'">
+          <i class="fa animate-pulse text-rose-500" :class="isTimerEnabled ? 'fa-hourglass-half' : 'fa-clock text-slate-600 dark:text-slate-300'" v-if="isTimerEnabled"></i>
+          <i class="fa fa-clock text-slate-600 dark:text-slate-300" v-else></i>
+          <span v-if="isTimerEnabled" class="font-mono text-xs font-bold text-rose-500">{{ formatTimerRemaining }}</span>
+        </button>
+
         <button @click="toggleShow" class="p-2.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-sm transition duration-200 text-slate-700 dark:text-slate-300">
           <i class="fa" :class="showSongList ? 'fa-music text-cyan-600 dark:text-cyan-400' : 'fa-list-ul text-yellow-600 dark:text-yellow-400'"></i>
           <span class="ml-1 hidden xs:inline">{{ showSongList ? '歌詞' : '歌單' }}</span>
@@ -473,6 +480,102 @@
       </div>
     </div>
 
+    <!-- 健康聆聽計時器設定 -->
+    <div v-if="showTimerModal" class="fixed inset-0 bg-slate-900/30 dark:bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-colors">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl transition-colors">
+        <h3 class="text-xl font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+          <i class="fa fa-clock"></i> 健康聆聽計時器
+        </h3>
+        
+        <div class="space-y-4">
+          <!-- 啟用開關 -->
+          <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800/80 transition-colors">
+            <span class="text-sm font-bold text-slate-700 dark:text-slate-200">啟動健康倒計時</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="isTimerEnabled" class="sr-only peer">
+              <div class="w-11 h-6 bg-slate-200 dark:bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- 計時長度 Slider -->
+          <div v-if="isTimerEnabled" class="space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-500 dark:text-slate-400 font-bold">聆聽時間設定</span>
+              <span class="text-indigo-600 dark:text-indigo-400 font-extrabold">{{ timerDuration }} 分鐘</span>
+            </div>
+            <input type="range" min="10" max="120" step="5" v-model.number="timerDuration" class="w-full accent-indigo-500 h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer transition-colors">
+            
+            <!-- 快速按鈕 -->
+            <div class="grid grid-cols-4 gap-1.5 pt-1">
+              <button v-for="t in [10, 30, 50, 60]" :key="t" @click="timerDuration = t" :class="timerDuration === t ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'" class="py-1 rounded-lg text-xs transition">
+                {{ t }}分
+              </button>
+            </div>
+          </div>
+
+          <!-- 僅在耳機時啟動 -->
+          <div class="space-y-2 border-t border-slate-200 dark:border-slate-800/80 pt-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-bold text-slate-700 dark:text-slate-200">僅限佩戴耳機時啟動</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="isOnlyHeadphones" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-200 dark:bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            <!-- 智慧偵測狀態 -->
+            <div v-if="isOnlyHeadphones" class="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800/80 text-xs transition-colors">
+              <div v-if="!isPermissionGranted" class="space-y-2">
+                <p class="text-amber-600 dark:text-amber-400 font-semibold leading-relaxed">
+                  ⚠️ 瀏覽器隱私安全限制，需授權音訊權限以啟用耳機智慧辨識功能。
+                </p>
+                <button @click="requestAudioPermission" class="w-full py-1.5 bg-amber-500 hover:bg-amber-400 text-white rounded-lg font-bold transition">
+                  授權智慧辨識
+                </button>
+              </div>
+              <div v-else class="flex items-center gap-2">
+                <span class="flex h-2.5 w-2.5 relative">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" :class="hasHeadphonesDetected ? 'bg-emerald-400' : 'bg-slate-400'"></span>
+                  <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="hasHeadphonesDetected ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                </span>
+                <span class="text-slate-600 dark:text-slate-400 font-semibold">
+                  {{ hasHeadphonesDetected ? '已偵測到耳機: ' + headphoneDeviceLabel : '未偵測到耳機 (音樂播放時暫停計時)' }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3">
+          <button @click="showTimerModal = false" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-base font-bold transition">確定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 聽力保護健康警訊 -->
+    <div v-if="showHealthWarningModal" class="fixed inset-0 bg-slate-900/40 dark:bg-slate-950/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 transition-colors">
+      <div class="bg-white dark:bg-slate-900 border-2 border-red-500 dark:border-red-600 rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-[0_15px_40px_rgba(239,68,68,0.2)] dark:shadow-[0_15px_40px_rgba(239,68,68,0.4)] text-center transition-colors">
+        <div class="mx-auto w-16 h-16 bg-red-100 dark:bg-red-950/80 rounded-full flex items-center justify-center text-red-500 dark:text-red-400 mb-2 animate-bounce">
+          <i class="fa fa-exclamation-triangle text-3xl"></i>
+        </div>
+        
+        <h3 class="text-2xl font-black text-red-600 dark:text-red-400">👂 聽力保護警訊</h3>
+        
+        <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed text-justify px-1">
+          親愛的跑友，您已經連續使用耳機聆聽音樂達 <span class="font-bold text-red-600 dark:text-red-400 text-base">{{ timerDuration }}</span> 分鐘！<br><br>
+          為了維護您的耳朵聽力健康，基於<b>「60-60聽力保護原則」</b>，建議您現在休息至少 <b>10</b> 分鐘。音樂播放已為您自動暫停。
+        </p>
+
+        <div class="flex flex-col gap-2 pt-4">
+          <button @click="showHealthWarningModal = false" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white py-3 rounded-xl text-base font-bold transition">
+            好的，讓耳朵休息一下
+          </button>
+          <button @click="showHealthWarningModal = false; timerRemaining = 10 * 60; isTimerEnabled = true; togglePlay()" class="w-full bg-gradient-to-r from-cyan-500 to-indigo-500 hover:brightness-110 text-white py-3 rounded-xl text-base font-bold transition">
+            再聽 10 分鐘 (延長)
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -484,6 +587,18 @@
       setup() {
         // 新增：主題模式切換核心邏輯
         const isDarkMode = ref(true); 
+        
+        // 新增：健康聆聽計時器與耳機偵測狀態變數
+        const isTimerEnabled = ref(false);
+        const timerDuration = ref(50); // 預設 50 分鐘
+        const timerRemaining = ref(50 * 60); // 剩餘秒數
+        const isOnlyHeadphones = ref(true); // 僅在使用耳機時啟用
+        const hasHeadphonesDetected = ref(false); // 是否偵測到耳機
+        const headphoneDeviceLabel = ref(''); // 偵測到的耳機名稱
+        const isPermissionGranted = ref(false); // 是否已取得音訊權限
+        
+        const showTimerModal = ref(false);
+        const showHealthWarningModal = ref(false);
         
         onMounted(() => {
           const savedTheme = localStorage.getItem('mp3player_theme');
@@ -498,6 +613,16 @@
         watch(isDarkMode, () => {
           applyTheme();
           localStorage.setItem('mp3player_theme', isDarkMode.value ? 'dark' : 'light');
+        });
+
+        const formatTimerRemaining = computed(() => {
+          const minutes = Math.floor(timerRemaining.value / 60);
+          const seconds = timerRemaining.value % 60;
+          return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        });
+
+        watch(timerDuration, (newVal) => {
+          timerRemaining.value = newVal * 60;
         });
 
         const applyTheme = () => {
@@ -1226,6 +1351,70 @@
           return `${Math.floor(time / 60).toString().padStart(2, '0')}:${Math.floor(time % 60).toString().padStart(2, '0')}`;
         };
 
+        // 新增：耳機偵測與健康聆聽計時器核心邏輯
+        const checkHeadphones = async () => {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            hasHeadphonesDetected.value = false;
+            headphoneDeviceLabel.value = '';
+            return;
+          }
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
+            
+            // 檢查是否取得 label 讀取權限
+            const hasLabels = audioOutputs.some(device => device.label !== '');
+            isPermissionGranted.value = hasLabels;
+            
+            const headphoneKeywords = [/headset/i, /headphones/i, /bluetooth/i, /buds/i, /earphone/i, /audio/i, /耳機/i, /藍牙/i, /藍芽/i, /聽筒/i];
+            const detected = audioOutputs.find(device => 
+              device.label && headphoneKeywords.some(pattern => pattern.test(device.label))
+            );
+            
+            if (detected) {
+              hasHeadphonesDetected.value = true;
+              headphoneDeviceLabel.value = detected.label;
+            } else {
+              hasHeadphonesDetected.value = false;
+              headphoneDeviceLabel.value = '';
+            }
+          } catch (err) {
+            console.error('耳機偵測失敗:', err);
+            hasHeadphonesDetected.value = false;
+            headphoneDeviceLabel.value = '';
+          }
+        };
+
+        const requestAudioPermission = async () => {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            isPermissionGranted.value = true;
+            await checkHeadphones();
+            triggerToast("✅ 已成功啟用耳機智慧偵測功能！");
+          } catch (err) {
+            triggerToast("⚠️ 無法取得權限，您可以手動啟用計時器。");
+            console.warn('權限請求失敗:', err);
+          }
+        };
+
+        const triggerTimerAlarm = () => {
+          if (vocalAudio) vocalAudio.pause();
+          isPlaying.value = false;
+          showHealthWarningModal.value = true;
+          isTimerEnabled.value = false; // 觸發後自動關閉，防重複觸發
+          
+          try {
+            const synth = new Tone.Synth().toDestination();
+            const now = Tone.now();
+            synth.triggerAttackRelease("C5", "8n", now);
+            synth.triggerAttackRelease("E5", "8n", now + 0.25);
+            synth.triggerAttackRelease("G5", "8n", now + 0.5);
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
         const startVisualizer = () => {
           const canvas = document.getElementById('visualizer');
           if (!canvas) return;
@@ -1323,6 +1512,24 @@
 							if (userName.value) registerVisitor(); // 把當前訪客登記到新的一天
 						}
 					}, 60000); // 每 60 秒檢查一次          
+
+          // 新增：註冊耳機變更與計時器倒數
+          if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+            navigator.mediaDevices.addEventListener('devicechange', checkHeadphones);
+          }
+          checkHeadphones();
+
+          setInterval(() => {
+            if (!isTimerEnabled.value) return;
+            if (!isPlaying.value) return;
+            if (isOnlyHeadphones.value && !hasHeadphonesDetected.value) return;
+
+            if (timerRemaining.value > 0) {
+              timerRemaining.value--;
+            } else {
+              triggerTimerAlarm();
+            }
+          }, 1000);
         });
 
         return {
@@ -1334,7 +1541,11 @@
           showOrderModal, showUploadModal, showInfoModal, showSettingsModal, showEditSongModal, showEditOwnersModal, orderForm, uploadForm, editSongForm, editOwnersForm,
           isSearchingLibrary, isSongDuplicate, searchFeedbackMessage,
           isEditingLyric, editableLyric, loadingLyric, isDynamicLyricMode, startEditLyric, cancelEditLyric, saveLyric, openUploadModal, openEditSongModal, openEditOwnersModal, submitEditSong, submitEditOwners, deleteSong, saveOffset, handleUserScroll,
-          toggleShow, togglePlayModel, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateVolume, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, resetGasUrl, formatTime
+          toggleShow, togglePlayModel, playSongById, togglePlay, playPrev, playNext, seekAudio, adjustPitch, resetPitch, toggleMute, updateVolume, toggleMyFavorite, isMyFavorite, submitOrderSong, submitUploadSong, saveSettings, resetGasUrl, formatTime,
+          
+          // 新增計時器與耳機變數及函數
+          isTimerEnabled, timerDuration, timerRemaining, isOnlyHeadphones, hasHeadphonesDetected, headphoneDeviceLabel, isPermissionGranted,
+          showTimerModal, showHealthWarningModal, formatTimerRemaining, checkHeadphones, requestAudioPermission, triggerTimerAlarm
         };
       }
     }).mount('#app');
