@@ -529,18 +529,31 @@
                 <p class="text-amber-600 dark:text-amber-400 font-semibold leading-relaxed">
                   ⚠️ 瀏覽器隱私安全限制，需授權音訊權限以啟用耳機智慧辨識功能。
                 </p>
-                <button @click="requestAudioPermission" class="w-full py-1.5 bg-amber-500 hover:bg-amber-400 text-white rounded-lg font-bold transition">
-                  授權智慧辨識
-                </button>
+                <div class="flex gap-2">
+                  <button @click="requestAudioPermission" class="flex-1 py-1.5 bg-amber-500 hover:bg-amber-400 text-white rounded-lg font-bold transition">
+                    授權智慧辨識
+                  </button>
+                  <button @click="forceHeadphonesActive = !forceHeadphonesActive" :class="forceHeadphonesActive ? 'bg-indigo-600 text-white border-transparent' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'" class="px-3 py-1.5 border rounded-lg font-bold transition">
+                    {{ forceHeadphonesActive ? '已強制啟用' : '手動忽略' }}
+                  </button>
+                </div>
               </div>
-              <div v-else class="flex items-center gap-2">
-                <span class="flex h-2.5 w-2.5 relative">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" :class="hasHeadphonesDetected ? 'bg-emerald-400' : 'bg-slate-400'"></span>
-                  <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="hasHeadphonesDetected ? 'bg-emerald-500' : 'bg-slate-400'"></span>
-                </span>
-                <span class="text-slate-600 dark:text-slate-400 font-semibold">
-                  {{ hasHeadphonesDetected ? '已偵測到耳機: ' + headphoneDeviceLabel : '未偵測到耳機 (音樂播放時暫停計時)' }}
-                </span>
+              <div v-else class="flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="flex h-2.5 w-2.5 relative">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" :class="(hasHeadphonesDetected || forceHeadphonesActive) ? 'bg-emerald-400' : 'bg-slate-400'"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="(hasHeadphonesDetected || forceHeadphonesActive) ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                  </span>
+                  <span class="text-slate-600 dark:text-slate-400 font-semibold">
+                    {{ (hasHeadphonesDetected || forceHeadphonesActive) ? '已偵測到耳機: ' + (forceHeadphonesActive ? '手動強制判定' : headphoneDeviceLabel) : '未偵測到耳機 (音樂播放時暫停計時)' }}
+                  </span>
+                </div>
+                <!-- 當自動偵測不到時，提供手動忽略選項 -->
+                <div v-if="!hasHeadphonesDetected" class="mt-1 flex justify-end">
+                  <button @click="forceHeadphonesActive = !forceHeadphonesActive" class="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">
+                    {{ forceHeadphonesActive ? '👉 恢復自動偵測耳機' : '👉 偵測不到耳機？點此手動忽略限制' }}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -780,7 +793,7 @@
         const currentTime = ref(0);
         const duration = ref(0);
         const volume = ref(parseFloat(localStorage.getItem('mp3player_volume') || '1.0'));
-        const isMuted = ref(false);
+                const isMuted = ref(false);
         const pitchShift = ref(0);
 
         let vocalAudio = null;
@@ -788,6 +801,9 @@
         let vocalGainNode = null;
         let toneAnalyserNode = null;
         let isEngineInitialized = false;
+        let mediaElementSource = null;
+        let isWebAudioConnected = false;
+        const forceHeadphonesActive = ref(false);
 
         const isFirstPlay = ref(true); 
 
@@ -905,33 +921,106 @@
         watch(currentSongId, scrollToCurrentSong);
         watch(showSongList, (newVal) => { if (newVal) scrollToCurrentSong(); });
 
+        const onTimeUpdate = () => { if (vocalAudio) currentTime.value = vocalAudio.currentTime; };
+        const onDurationChange = () => { if (vocalAudio) duration.value = vocalAudio.duration; };
+        const onPlay = () => { isPlaying.value = true; };
+        const onPause = () => { isPlaying.value = false; };
+        const onError = () => {
+          triggerToast("❌ 無法讀取歌曲，請確認雲端硬碟檔案是否存在。");
+          isPlaying.value = false;
+        };
+
+        const rebuildAudioElement = () => {
+          if (!vocalAudio) return;
+          console.log("[AudioEngine] 重建 Audio 實例以切回直接播放模式...");
+          const wasPlaying = isPlaying.value;
+          const savedTime = vocalAudio.currentTime;
+          const savedSrc = vocalAudio.src;
+
+          vocalAudio.pause();
+          vocalAudio.removeEventListener('timeupdate', onTimeUpdate);
+          vocalAudio.removeEventListener('durationchange', onDurationChange);
+          vocalAudio.removeEventListener('ended', playNextSongAuto);
+          vocalAudio.removeEventListener('play', onPlay);
+          vocalAudio.removeEventListener('pause', onPause);
+          vocalAudio.removeEventListener('error', onError);
+
+          if (mediaElementSource) {
+            try {
+              mediaElementSource.disconnect();
+            } catch(e) {}
+            mediaElementSource = null;
+          }
+
+          vocalAudio = new Audio();
+          vocalAudio.crossOrigin = "anonymous";
+          vocalAudio.addEventListener('timeupdate', onTimeUpdate);
+          vocalAudio.addEventListener('durationchange', onDurationChange);
+          vocalAudio.addEventListener('ended', playNextSongAuto);
+          vocalAudio.addEventListener('play', onPlay);
+          vocalAudio.addEventListener('pause', onPause);
+          vocalAudio.addEventListener('error', onError);
+
+          isWebAudioConnected = false;
+
+          const targetVol = isMuted.value ? 0 : volume.value;
+          vocalAudio.volume = targetVol;
+
+          if (savedSrc) {
+            vocalAudio.src = savedSrc;
+            vocalAudio.currentTime = savedTime;
+            if (wasPlaying) {
+              vocalAudio.play().catch(err => {
+                console.warn("[AudioEngine] 重建後播放失敗 (可能被瀏覽器安全策略阻擋):", err);
+              });
+            }
+          }
+        };
+
+        const setupAudioRouting = () => {
+          if (!vocalAudio) return;
+          const targetVol = isMuted.value ? 0 : volume.value;
+
+          if (pitchShift.value !== 0) {
+            // 需要 Web Audio (變調模式)
+            if (!isWebAudioConnected) {
+              if (!vocalGainNode) vocalGainNode = new Tone.Gain(1);
+              if (!tonePitchShiftNode) tonePitchShiftNode = new Tone.PitchShift(pitchShift.value).toDestination();
+              if (!toneAnalyserNode) toneAnalyserNode = new Tone.Analyser("waveform", 128);
+
+              if (!mediaElementSource) {
+                mediaElementSource = Tone.context.createMediaElementSource(vocalAudio);
+              }
+              Tone.connect(mediaElementSource, vocalGainNode);
+              Tone.connect(vocalGainNode, tonePitchShiftNode);
+              vocalGainNode.connect(toneAnalyserNode);
+              isWebAudioConnected = true;
+            }
+            if (tonePitchShiftNode) tonePitchShiftNode.pitch = pitchShift.value;
+            if (vocalGainNode) vocalGainNode.gain.value = targetVol;
+            vocalAudio.volume = 1;
+          } else {
+            // 直接播放模式
+            if (isWebAudioConnected) {
+              rebuildAudioElement();
+            } else {
+              vocalAudio.volume = targetVol;
+            }
+          }
+        };
+
         const initAudioEngine = async() => {
           if (isEngineInitialized) return;
           await Tone.start();
           vocalAudio = new Audio();
           vocalAudio.crossOrigin = "anonymous";
-
-          vocalGainNode = new Tone.Gain(1);
-          tonePitchShiftNode = new Tone.PitchShift(pitchShift.value).toDestination();
-          toneAnalyserNode = new Tone.Analyser("waveform", 128);
-
-          Tone.connect(Tone.context.createMediaElementSource(vocalAudio), vocalGainNode);
-          Tone.connect(vocalGainNode, tonePitchShiftNode);
-          vocalGainNode.connect(toneAnalyserNode);
-					
-          vocalAudio.addEventListener('timeupdate', () => {
-            currentTime.value = vocalAudio.currentTime;
-          });
-          vocalAudio.addEventListener('durationchange', () => duration.value = vocalAudio.duration);
-          vocalAudio.addEventListener('ended', playNextSongAuto);
           
-          vocalAudio.addEventListener('play', () => isPlaying.value = true);
-          vocalAudio.addEventListener('pause', () => isPlaying.value = false);
-
-          vocalAudio.addEventListener('error', () => {
-            triggerToast("❌ 無法讀取歌曲，請確認雲端硬碟檔案是否存在。");
-            isPlaying.value = false;
-          });
+          vocalAudio.addEventListener('timeupdate', onTimeUpdate);
+          vocalAudio.addEventListener('durationchange', onDurationChange);
+          vocalAudio.addEventListener('ended', playNextSongAuto);
+          vocalAudio.addEventListener('play', onPlay);
+          vocalAudio.addEventListener('pause', onPause);
+          vocalAudio.addEventListener('error', onError);
 
           if ('mediaSession' in navigator) {
             navigator.mediaSession.setActionHandler('play', togglePlay);
@@ -941,22 +1030,31 @@
           }
 
           isEngineInitialized = true;
-          updateVolume();
+          setupAudioRouting();
         };
 
         const updateVolume = () => {
           localStorage.setItem('mp3player_volume', volume.value.toString());
           if (!isEngineInitialized) return;
-          vocalGainNode.gain.value = isMuted.value ? 0 : volume.value;
+          const targetVol = isMuted.value ? 0 : volume.value;
+          if (isWebAudioConnected && vocalGainNode) {
+            vocalGainNode.gain.value = targetVol;
+            if (vocalAudio) vocalAudio.volume = 1;
+          } else {
+            if (vocalAudio) vocalAudio.volume = targetVol;
+          }
         };
 
         const toggleMute = () => { isMuted.value = !isMuted.value; updateVolume(); };
         const adjustPitch = async(amount) => {
           await initAudioEngine();
           pitchShift.value = Math.max(-6, Math.min(6, pitchShift.value + amount));
-          if (tonePitchShiftNode) tonePitchShiftNode.pitch = pitchShift.value;
+          setupAudioRouting();
         };
-        const resetPitch = () => { pitchShift.value = 0; if (tonePitchShiftNode) tonePitchShiftNode.pitch = 0; };
+        const resetPitch = () => { 
+          pitchShift.value = 0; 
+          setupAudioRouting(); 
+        };
 				
         const base64ToBlob = async (base64, mimeType) => {
           const res = await fetch(`data:${mimeType};base64,${base64}`);
@@ -1360,16 +1458,46 @@
           }
           try {
             const devices = await navigator.mediaDevices.enumerateDevices();
-            const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
+            // 同時檢查輸出與輸入裝置，因為部分設備（特別是藍牙與 iOS）的耳機會註冊在輸入端（麥克風）
+            const audioDevices = devices.filter(device => device.kind === 'audiooutput' || device.kind === 'audioinput');
             
             // 檢查是否取得 label 讀取權限
-            const hasLabels = audioOutputs.some(device => device.label !== '');
+            const hasLabels = audioDevices.some(device => device.label !== '');
             isPermissionGranted.value = hasLabels;
             
-            const headphoneKeywords = [/headset/i, /headphones/i, /bluetooth/i, /buds/i, /earphone/i, /audio/i, /耳機/i, /藍牙/i, /藍芽/i, /聽筒/i];
-            const detected = audioOutputs.find(device => 
-              device.label && headphoneKeywords.some(pattern => pattern.test(device.label))
-            );
+            // 精煉的耳機與藍牙裝置特徵字
+            const headphoneKeywords = [
+              /headset/i, /headphones/i, /bluetooth/i, /buds/i, /earphone/i, 
+              /耳機/i, /藍牙/i, /藍芽/i, /聽筒/i,
+              /airpods/i, /beats/i, /sony/i, /bose/i, /jbl/i, /shokz/i
+            ];
+            
+            // 內建裝置排除字
+            const builtInKeywords = [
+              /built-in/i, /internal/i, /speaker/i, /microphone/i, 
+              /麥克風/i, /揚聲器/i, /喇叭/i, /內建/i, /receiver/i
+            ];
+            
+            let detected = null;
+            for (const device of audioDevices) {
+              if (device.label) {
+                const label = device.label.toLowerCase();
+                const matchHeadphone = headphoneKeywords.some(pattern => pattern.test(label));
+                const matchBuiltIn = builtInKeywords.some(pattern => pattern.test(label));
+                
+                // 排除內建裝置後，若包含特徵字，判定為耳機
+                if (matchHeadphone && !matchBuiltIn) {
+                  detected = device;
+                  break;
+                }
+                
+                // 額外特定字眼的 fallback
+                if (/airpods/i.test(label) || /buds/i.test(label) || /earphone/i.test(label) || /headphone/i.test(label)) {
+                  detected = device;
+                  break;
+                }
+              }
+            }
             
             if (detected) {
               hasHeadphonesDetected.value = true;
@@ -1437,7 +1565,20 @@
             
             ctx.clearRect(0, 0, width, height);
 
-            if (!isEngineInitialized || !toneAnalyserNode || !isPlaying.value) {
+            let values;
+            if (isEngineInitialized && isWebAudioConnected && toneAnalyserNode && isPlaying.value) {
+              values = toneAnalyserNode.getValue();
+            } else if (isPlaying.value) {
+              // 直接播放模式下的波形模擬器：產生一組平滑的 Sine 波動數值 (長度 128)
+              values = new Float32Array(128);
+              const time = Date.now() * 0.004;
+              for (let i = 0; i < 128; i++) {
+                const angle1 = (i / 128) * Math.PI * 4 + time;
+                const angle2 = (i / 128) * Math.PI * 8 - time * 1.5;
+                const amp = Math.sin(time * 0.5) * 0.15 + 0.2; // 隨時間波動的振幅
+                values[i] = (Math.sin(angle1) * 0.6 + Math.cos(angle2) * 0.4) * amp;
+              }
+            } else {
               // 靜止時畫一條淡藍色的基準線
               ctx.beginPath();
               ctx.moveTo(0, height / 2);
@@ -1447,8 +1588,6 @@
               ctx.stroke();
               return;
             }
-
-            const values = toneAnalyserNode.getValue();
             
             ctx.beginPath();
             ctx.lineWidth = 3;
@@ -1522,7 +1661,7 @@
           setInterval(() => {
             if (!isTimerEnabled.value) return;
             if (!isPlaying.value) return;
-            if (isOnlyHeadphones.value && !hasHeadphonesDetected.value) return;
+            if (isOnlyHeadphones.value && !hasHeadphonesDetected.value && !forceHeadphonesActive.value) return;
 
             if (timerRemaining.value > 0) {
               timerRemaining.value--;
@@ -1545,7 +1684,8 @@
           
           // 新增計時器與耳機變數及函數
           isTimerEnabled, timerDuration, timerRemaining, isOnlyHeadphones, hasHeadphonesDetected, headphoneDeviceLabel, isPermissionGranted,
-          showTimerModal, showHealthWarningModal, formatTimerRemaining, checkHeadphones, requestAudioPermission, triggerTimerAlarm
+          showTimerModal, showHealthWarningModal, formatTimerRemaining, checkHeadphones, requestAudioPermission, triggerTimerAlarm,
+          forceHeadphonesActive
         };
       }
     }).mount('#app');
