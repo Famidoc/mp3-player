@@ -1669,6 +1669,36 @@
               triggerTimerAlarm();
             }
           }, 1000);
+
+          // 註冊 PWA Service Worker 並啟用強效自動更新機制
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+              .then(reg => {
+                console.log('Service Worker 註冊成功:', reg.scope);
+                
+                // 主動向伺服器檢查更新，防行動端 HTTP 短期快取
+                reg.update();
+                
+                // 當發現新 Service Worker 正在安裝時，監聽其狀態
+                reg.addEventListener('updatefound', () => {
+                  const newWorker = reg.installing;
+                  if (newWorker) {
+                    newWorker.addEventListener('statechange', () => {
+                      if (newWorker.state === 'installed') {
+                        // 如果原本已有 SW 控制器，代表是更新而非首次安裝
+                        if (navigator.serviceWorker.controller) {
+                          triggerToast("✨ 偵測到新版本！正在為您自動更新...", 3000);
+                          setTimeout(() => {
+                            window.location.reload();
+                          }, 1500);
+                        }
+                      }
+                    });
+                  }
+                });
+              })
+              .catch(err => console.log('Service Worker 註冊失敗:', err));
+          }
         });
 
         return {
@@ -1690,13 +1720,7 @@
       }
     }).mount('#app');
 
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('Service Worker 註冊成功:', reg.scope))
-          .catch(err => console.log('Service Worker 註冊失敗:', err));
-      });
-    }
+
   </script>
 </body>
 </html>
