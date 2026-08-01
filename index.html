@@ -921,10 +921,37 @@
         watch(currentSongId, scrollToCurrentSong);
         watch(showSongList, (newVal) => { if (newVal) scrollToCurrentSong(); });
 
+        let wakeLockSentinel = null;
+        const requestWakeLock = async () => {
+          try {
+            if ('wakeLock' in navigator && !wakeLockSentinel) {
+              wakeLockSentinel = await navigator.wakeLock.request('screen');
+              wakeLockSentinel.addEventListener('release', () => {
+                wakeLockSentinel = null;
+              });
+            }
+          } catch (err) {
+            console.warn('[WakeLock] 無法請求螢幕恆亮權限:', err);
+          }
+        };
+
+        const releaseWakeLock = () => {
+          if (wakeLockSentinel) {
+            wakeLockSentinel.release().catch(() => {});
+            wakeLockSentinel = null;
+          }
+        };
+
         const onTimeUpdate = () => { if (vocalAudio) currentTime.value = vocalAudio.currentTime; };
         const onDurationChange = () => { if (vocalAudio) duration.value = vocalAudio.duration; };
-        const onPlay = () => { isPlaying.value = true; };
-        const onPause = () => { isPlaying.value = false; };
+        const onPlay = () => { 
+          isPlaying.value = true;
+          requestWakeLock();
+        };
+        const onPause = () => { 
+          isPlaying.value = false;
+          releaseWakeLock();
+        };
         const onError = () => {
           triggerToast("❌ 無法讀取歌曲，請確認雲端硬碟檔案是否存在。");
           isPlaying.value = false;
@@ -1657,6 +1684,22 @@
             navigator.mediaDevices.addEventListener('devicechange', checkHeadphones);
           }
           checkHeadphones();
+
+          // 新增：監聽頁面可見性切換（解決手機螢幕黑掉／休眠後 AudioContext 被掛起與聲量中斷問題）
+          document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible') {
+              if (isPlaying.value) {
+                requestWakeLock();
+                if (typeof Tone !== 'undefined' && Tone.context && Tone.context.state === 'suspended') {
+                  console.log('[AudioEngine] 螢幕亮起/頁面恢復，自動喚醒 Tone.context 音訊上下文');
+                  try { await Tone.context.resume(); } catch(e) {}
+                }
+                if (vocalAudio && vocalAudio.paused) {
+                  vocalAudio.play().catch(e => console.warn('[AudioEngine] 恢復播放失敗:', e));
+                }
+              }
+            }
+          });
 
           setInterval(() => {
             if (!isTimerEnabled.value) return;

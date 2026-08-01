@@ -3,7 +3,7 @@
  * 用於處理前端靜態資源的離線快取
  */
 
-const CACHE_NAME = 'mp3player-v12';
+const CACHE_NAME = 'mp3player-v13';
 
 // 需要快取的靜態資源清單
 const ASSETS_TO_CACHE = [
@@ -42,17 +42,33 @@ self.addEventListener('activate', event => {
   );
 });
 
-// 3. 攔截請求：極速避開跨網域 Range 媒體請求 Bug
+// 3. 攔截請求：極速避開跨網域 Range 媒體請求 Bug ＋ HTML 採用 Network-First
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // 💡 關鍵修復：只要是跨來源請求（如 Google Drive docs.google.com），
-  // Service Worker 徹底不予攔截、不予處理，直接 return 跳出！
-  // 這能 100% 完美繞過瀏覽器在 Service Worker 內處理音訊分段 Range (206) 請求時引發的 CORS 阻擋 Bug！
+  // 💡 關鍵修復：只要是跨來源請求（如 Google Drive docs.google.com），不予攔截
   if (url.origin !== self.location.origin) {
     return; 
   }
 
+  // 💡 關鍵修復：針對主頁 HTML 與頁面導航，使用 Network-First 策略
+  // 優先連線網路下載最新 HTML，失敗時（離線）才使用 Local Cache
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // 靜態資源（CSS, JS, 圖片等）採用 Cache-First 提高載入速度
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
       return cachedResponse || fetch(event.request);
