@@ -3,7 +3,7 @@
  * 用於處理前端靜態資源的離線快取
  */
 
-const CACHE_NAME = 'mp3player-v13';
+const CACHE_NAME = 'mp3player-v14';
 
 // 需要快取的靜態資源清單
 const ASSETS_TO_CACHE = [
