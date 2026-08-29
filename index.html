@@ -601,7 +601,7 @@
         const isDarkMode = ref(true); 
         
         // 新增：健康聆聽計時器與耳機偵測狀態變數
-        const isTimerEnabled = ref(false);
+        const isTimerEnabled = ref(true);
         const timerDuration = ref(50); // 預設 50 分鐘
         const timerRemaining = ref(50 * 60); // 剩餘秒數
         const isOnlyHeadphones = ref(true); // 僅在使用耳機時啟用
