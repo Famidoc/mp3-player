@@ -76,10 +76,9 @@
       </div>
       <div class="flex gap-2 items-center">
         <!-- 新增：健康聆聽計時器快捷按鈕 -->
-        <button @click="showTimerModal = true" class="p-2.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-sm transition duration-200 flex items-center gap-1.5" :title="isTimerEnabled ? '計時器運行中，剩餘 ' + formatTimerRemaining : '設定健康聆聽計時器'">
-          <i class="fa animate-pulse text-rose-500" :class="isTimerEnabled ? 'fa-hourglass-half' : 'fa-clock text-slate-600 dark:text-slate-300'" v-if="isTimerEnabled"></i>
-          <i class="fa fa-clock text-slate-600 dark:text-slate-300" v-else></i>
-          <span v-if="isTimerEnabled" class="font-mono text-xs font-bold text-rose-500">{{ formatTimerRemaining }}</span>
+        <button @click="showTimerModal = true" class="p-2.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-sm transition duration-200 flex items-center gap-1.5" :title="timerStatusTitle">
+          <i class="fa" :class="isTimerTicking ? 'fa-hourglass-half text-rose-500 animate-pulse' : (isTimerEnabled && isOnlyHeadphones && !hasHeadphonesDetected && !forceHeadphonesActive ? 'fa-headphones text-amber-500' : (isTimerEnabled ? 'fa-clock text-indigo-500' : 'fa-clock text-slate-600 dark:text-slate-300'))"></i>
+          <span v-if="isTimerEnabled" class="font-mono text-xs font-bold" :class="isTimerTicking ? 'text-rose-500' : (isOnlyHeadphones && !hasHeadphonesDetected && !forceHeadphonesActive ? 'text-amber-500' : 'text-slate-600 dark:text-slate-300')">{{ formatTimerRemaining }}</span>
         </button>
 
         <button @click="toggleShow" class="p-2.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-sm transition duration-200 text-slate-700 dark:text-slate-300">
@@ -844,6 +843,19 @@
         let isWebAudioConnected = false;
         const forceHeadphonesActive = ref(false);
 
+        const isTimerTicking = computed(() => {
+          return isTimerEnabled.value && isPlaying.value && (!isOnlyHeadphones.value || hasHeadphonesDetected.value || forceHeadphonesActive.value);
+        });
+
+        const timerStatusTitle = computed(() => {
+          if (!isTimerEnabled.value) return '設定健康聆聽計時器';
+          if (!isPlaying.value) return `健康倒計時已就緒（剩餘 ${formatTimerRemaining.value}），播放音樂時自動計時`;
+          if (isOnlyHeadphones.value && !hasHeadphonesDetected.value && !forceHeadphonesActive.value) {
+            return `健康倒計時暫停中：未偵測到耳機（剩餘 ${formatTimerRemaining.value}）`;
+          }
+          return `健康倒計時進行中，剩餘 ${formatTimerRemaining.value}`;
+        });
+
         const isFirstPlay = ref(true); 
 
         const currentSong = computed(() => songs.value.find(s => s.id === currentSongId.value) || null);
@@ -1538,37 +1550,54 @@
             const hasLabels = audioDevices.some(device => device.label !== '');
             isPermissionGranted.value = hasLabels;
             
-            // 精煉的耳機與藍牙裝置特徵字
-            const headphoneKeywords = [
-              /headset/i, /headphones/i, /bluetooth/i, /buds/i, /earphone/i, 
-              /耳機/i, /藍牙/i, /藍芽/i, /聽筒/i,
-              /airpods/i, /beats/i, /sony/i, /bose/i, /jbl/i, /shokz/i
-            ];
-            
-            // 內建裝置排除字
-            const builtInKeywords = [
-              /built-in/i, /internal/i, /speaker/i, /microphone/i, 
-              /麥克風/i, /揚聲器/i, /喇叭/i, /內建/i, /receiver/i
-            ];
+            if (!hasLabels) {
+              hasHeadphonesDetected.value = false;
+              headphoneDeviceLabel.value = '';
+              return;
+            }
+
+            // 嚴格過濾裝置判斷
+            const isHeadphoneDevice = (label) => {
+              if (!label) return false;
+              const l = label.toLowerCase();
+              
+              // 1. 手機內建通話聽筒、內建揚聲器、內建麥克風等純內建組件
+              const builtInPatterns = [
+                /內建/, /built-in/, /internal/, /integrated/,
+                /聽筒/, /earpiece/, /handset/, /telephony/,
+                /揚聲器/, /speaker/, /喇叭/, /擴音/, /receiver/,
+                /default/, /預設/
+              ];
+              
+              // 2. 明確的外接耳機與藍牙特徵關鍵字
+              const headphonePatterns = [
+                /airpods/, /earphone/, /headphone/, /earbud/, /buds/, 
+                /耳機/, /耳塞/, /藍牙/, /藍芽/, /bluetooth/, /wireless/,
+                /骨傳導/, /shokz/, /beats/, /bose/, /sony/, /jbl/, /sennheiser/,
+                /audio-technica/, /鐵三角/, /wh-/, /wf-/,
+                /wired headset/, /有線耳/
+              ];
+              
+              const hasHeadphoneMatch = headphonePatterns.some(p => p.test(l));
+              
+              // 如果只匹配到內建字眼，且無明確耳機字樣，直接排除
+              if (builtInPatterns.some(p => p.test(l)) && !hasHeadphoneMatch) {
+                return false;
+              }
+
+              // 手機上的「聽筒 (Earpiece)」即使在 WebRTC 中帶有 headset (如 Headset earpiece)，本質仍為通話專用內建聽筒，若含有聽筒/earpiece 且無明確 AirPods/Buds/耳機/藍牙關鍵字，嚴格排除
+              if ((/聽筒/.test(l) || /earpiece/.test(l)) && !(/耳機/.test(l) || /airpods/.test(l) || /buds/.test(l) || /bluetooth/.test(l) || /藍牙/.test(l) || /藍芽/.test(l))) {
+                return false;
+              }
+
+              return hasHeadphoneMatch;
+            };
             
             let detected = null;
             for (const device of audioDevices) {
-              if (device.label) {
-                const label = device.label.toLowerCase();
-                const matchHeadphone = headphoneKeywords.some(pattern => pattern.test(label));
-                const matchBuiltIn = builtInKeywords.some(pattern => pattern.test(label));
-                
-                // 排除內建裝置後，若包含特徵字，判定為耳機
-                if (matchHeadphone && !matchBuiltIn) {
-                  detected = device;
-                  break;
-                }
-                
-                // 額外特定字眼的 fallback
-                if (/airpods/i.test(label) || /buds/i.test(label) || /earphone/i.test(label) || /headphone/i.test(label)) {
-                  detected = device;
-                  break;
-                }
+              if (device.label && isHeadphoneDevice(device.label)) {
+                detected = device;
+                break;
               }
             }
             
@@ -1804,7 +1833,7 @@
           // 新增計時器與耳機變數及函數
           isTimerEnabled, timerDuration, timerRemaining, isOnlyHeadphones, hasHeadphonesDetected, headphoneDeviceLabel, isPermissionGranted,
           showTimerModal, showHealthWarningModal, formatTimerRemaining, checkHeadphones, requestAudioPermission, triggerTimerAlarm,
-          forceHeadphonesActive
+          forceHeadphonesActive, isTimerTicking, timerStatusTitle
         };
       }
     }).mount('#app');
